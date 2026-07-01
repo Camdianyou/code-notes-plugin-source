@@ -1,0 +1,51 @@
+<idea-plugin>
+    <id>com.codenotes.plugin</id>
+    <name>Code Notes</name>
+    <vendor email="support@example.com" url="https://example.com">Code Notes</vendor>
+
+    <description><![CDATA[
+      <p>Attach persistent, structured knowledge notes directly to your source code —
+      files, classes, methods, or any selected code — without leaving the IDE.</p>
+      <ul>
+        <li>Right-click any code and "Add Code Note..." (comment, bug, question, architecture, TODO, etc.)</li>
+        <li>Notes survive minor edits via line + content-hash anchoring</li>
+        <li>Gutter icons with hover previews on annotated lines</li>
+        <li>Searchable Code Notes tool window with jump-to-code navigation</li>
+        <li>Bilingual UI: English / 简体中文, follows the IDE locale automatically</li>
+        <li>Notes are stored per-project in .idea/codeNotes.xml — plain text, git-friendly</li>
+      </ul>
+      <p>This is an actively evolving MVP. Planned next: Markdown/Mermaid rich editor,
+      Kanban TODO board, knowledge graph view, and AI-assisted note generation.</p>
+    ]]></description>
+
+    <!-- Compatible with IntelliJ Platform 2023.1 (build 231) and later, any edition -->
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="Code Notes"
+                    anchor="right"
+                    icon="AllIcons.General.BalloonInformation"
+                    factoryClass="com.codenotes.plugin.toolwindow.CodeNotesToolWindowFactory"/>
+
+        <projectService serviceImplementation="com.codenotes.plugin.state.NoteStorageService"/>
+        <applicationService serviceImplementation="com.codenotes.plugin.settings.CodeNotesSettingsState"/>
+
+        <applicationConfigurable
+            parentId="tools"
+            instance="com.codenotes.plugin.settings.CodeNotesConfigurable"
+            id="com.codenotes.plugin.settings.CodeNotesConfigurable"
+            displayName="Code Notes"/>
+
+        <editorFactoryListener implementation="com.codenotes.plugin.gutter.NoteGutterEditorListener"/>
+
+        <notificationGroup id="CodeNotes.Notifications" displayType="BALLOON"/>
+    </extensions>
+
+    <actions>
+        <group id="CodeNotes.EditorPopupGroup" text="Code Notes" popup="true">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+            <action id="CodeNotes.AddNote"
+                    class="com.codenotes.plugin.actions.AddNoteAction"/>
+        </group>
+    </actions>
+</idea-plugin>
