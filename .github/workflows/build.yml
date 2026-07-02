@@ -19,6 +19,11 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
+        with:
+          # GitHub cache service outages can produce noisy "Failed to save cache entry"
+          # warnings after a successful build. This project is small enough that a
+          # deterministic, cache-free CI run is preferable.
+          cache-disabled: true
 
       - name: Build plugin
         working-directory: codenotes-plugin
