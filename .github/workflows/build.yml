@@ -27,7 +27,9 @@ jobs:
 
       - name: Build plugin
         working-directory: codenotes-plugin
-        run: gradle buildPlugin --no-daemon
+        run: |
+          chmod +x ./gradlew
+          ./gradlew test buildPlugin --no-daemon
 
       - name: Upload plugin zip
         uses: actions/upload-artifact@v4
