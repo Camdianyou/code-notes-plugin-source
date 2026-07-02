@@ -14,5 +14,6 @@ class NoteGutterIconRendererTest {
         assertEquals("CRITICAL", NoteGutterIconRenderer.iconKeyForPriority(TodoPriority.CRITICAL.name))
         assertEquals("HIGH", NoteGutterIconRenderer.iconKeyForPriority("\u9AD8"))
         assertEquals("MEDIUM", NoteGutterIconRenderer.iconKeyForPriority(""))
+        assertEquals("MEDIUM", NoteGutterIconRenderer.iconKeyForPriority("unknown"))
     }
 }

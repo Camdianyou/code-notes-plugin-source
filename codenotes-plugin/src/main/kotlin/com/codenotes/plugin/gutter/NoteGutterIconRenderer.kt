@@ -1,8 +1,7 @@
 package com.codenotes.plugin.gutter
 
-import com.codenotes.plugin.model.NoteEntity
-import com.codenotes.plugin.model.NoteType
 import com.codenotes.plugin.model.TodoPriority
+import com.codenotes.plugin.repository.CodeReviewRepository
 import com.codenotes.plugin.repository.NoteRepository
 import com.codenotes.plugin.ui.NoteEditorDialog
 import com.codenotes.plugin.util.CodeNotesBundle
@@ -14,37 +13,49 @@ import javax.swing.Icon
 
 class NoteGutterIconRenderer(
     private val project: Project,
-    private val noteId: String
+    private val marker: CodeAnchorMarker
 ) : GutterIconRenderer() {
 
-    override fun getIcon(): Icon {
-        val note = NoteRepository.getInstance(project).findById(noteId) ?: return CodeNotesIcons.GutterMedium
-        return iconForPriority(note.priority)
-    }
+    override fun getIcon(): Icon = iconForPriority(marker.priority)
 
     override fun getTooltipText(): String {
-        val note = NoteRepository.getInstance(project).findById(noteId) ?: return ""
-        val typeLabel = (LocalizedEnumLabels.noteTypeCode(note.type) ?: NoteType.COMMENT).icon
-        val title = note.title.ifBlank { "(untitled)" }
-        val priority = LocalizedEnumLabels.priority(priorityFor(note.priority))
-        return "${CodeNotesBundle.message("gutter.tooltip.prefix")} $typeLabel $title / $priority\n${note.summary}"
+        val typeLabel = CodeAnchorMarker.typeIcon(marker.type)
+        val title = marker.title.ifBlank { "(untitled)" }
+        val priority = LocalizedEnumLabels.priority(priorityFor(marker.priority))
+        val prefix = when (marker.kind) {
+            CodeAnchorMarkerKind.NOTE -> CodeNotesBundle.message("gutter.tooltip.prefix")
+            CodeAnchorMarkerKind.REVIEW_ISSUE -> "\u8D70\u67E5\u95EE\u9898\uFF1A"
+        }
+        return "$prefix $typeLabel $title / $priority\n${marker.summary}"
     }
 
     override fun isNavigateAction(): Boolean = true
 
     override fun getClickAction() = object : com.intellij.openapi.actionSystem.AnAction() {
         override fun actionPerformed(e: com.intellij.openapi.actionSystem.AnActionEvent) {
-            val note: NoteEntity = NoteRepository.getInstance(project).findById(noteId) ?: return
-            val dialog = NoteEditorDialog(project, note)
-            if (dialog.showAndGet()) {
-                dialog.applyTo(note)
-                NoteRepository.getInstance(project).update(note)
+            when (marker.kind) {
+                CodeAnchorMarkerKind.NOTE -> {
+                    val note = NoteRepository.getInstance(project).findById(marker.id) ?: return
+                    val dialog = NoteEditorDialog(project, note)
+                    if (dialog.showAndGet()) {
+                        dialog.applyTo(note)
+                        NoteRepository.getInstance(project).update(note)
+                    }
+                }
+                CodeAnchorMarkerKind.REVIEW_ISSUE -> {
+                    CodeReviewRepository.getInstance(project).findIssue(marker.id) ?: return
+                    com.intellij.openapi.wm.ToolWindowManager.getInstance(project)
+                        .getToolWindow("Code Notes")
+                        ?.activate(null)
+                }
             }
         }
     }
 
-    override fun equals(other: Any?): Boolean = other is NoteGutterIconRenderer && other.noteId == noteId
-    override fun hashCode(): Int = noteId.hashCode()
+    override fun equals(other: Any?): Boolean =
+        other is NoteGutterIconRenderer && other.marker.id == marker.id && other.marker.kind == marker.kind
+
+    override fun hashCode(): Int = 31 * marker.kind.hashCode() + marker.id.hashCode()
 
     companion object {
         fun iconKeyForPriority(priority: String): String = priorityFor(priority).name

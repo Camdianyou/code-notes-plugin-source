@@ -197,8 +197,14 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
         textTabs.addTab(CodeNotesBundle.message("review.field.notes"), CodeNotesIcons.Info, JBScrollPane(notesArea))
 
         val panel = CodeNotesUi.detailPanel()
-        panel.add(CodeNotesUi.section(CodeNotesBundle.message("review.section.meeting"), CodeNotesIcons.Meeting, fields), BorderLayout.NORTH)
-        panel.add(CodeNotesUi.section(CodeNotesBundle.message("review.section.reviewContent"), CodeNotesIcons.Markdown, textTabs), BorderLayout.CENTER)
+        panel.add(
+            CodeNotesUi.verticalSplit(
+                CodeNotesUi.section(CodeNotesBundle.message("review.section.meeting"), CodeNotesIcons.Meeting, fields),
+                CodeNotesUi.section(CodeNotesBundle.message("review.section.reviewContent"), CodeNotesIcons.Markdown, textTabs),
+                0.35
+            ),
+            BorderLayout.CENTER
+        )
         return panel
     }
 
@@ -221,8 +227,14 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
         textTabs.addTab(CodeNotesBundle.message("review.field.resolution"), CodeNotesIcons.Status, JBScrollPane(resolutionArea))
 
         val panel = CodeNotesUi.detailPanel()
-        panel.add(CodeNotesUi.section(CodeNotesBundle.message("review.section.issue"), CodeNotesIcons.ReviewIssue, fields), BorderLayout.NORTH)
-        panel.add(CodeNotesUi.section(CodeNotesBundle.message("review.section.followup"), CodeNotesIcons.Priority, textTabs), BorderLayout.CENTER)
+        panel.add(
+            CodeNotesUi.verticalSplit(
+                CodeNotesUi.section(CodeNotesBundle.message("review.section.issue"), CodeNotesIcons.ReviewIssue, fields),
+                CodeNotesUi.section(CodeNotesBundle.message("review.section.followup"), CodeNotesIcons.Priority, textTabs),
+                0.35
+            ),
+            BorderLayout.CENTER
+        )
         return panel
     }
 

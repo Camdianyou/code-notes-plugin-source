@@ -193,10 +193,19 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
             }
         }
 
+        val lower = CodeNotesUi.detailPanel()
+        lower.add(CodeNotesUi.section(CodeNotesBundle.message("panel.section.content"), CodeNotesIcons.Markdown, tabs), BorderLayout.CENTER)
+        lower.add(attachmentPanel(), BorderLayout.SOUTH)
+
         val panel = CodeNotesUi.detailPanel()
-        panel.add(CodeNotesUi.section(CodeNotesBundle.message("panel.section.basic"), CodeNotesIcons.Info, fields), BorderLayout.NORTH)
-        panel.add(CodeNotesUi.section(CodeNotesBundle.message("panel.section.content"), CodeNotesIcons.Markdown, tabs), BorderLayout.CENTER)
-        panel.add(attachmentPanel(), BorderLayout.SOUTH)
+        panel.add(
+            CodeNotesUi.verticalSplit(
+                CodeNotesUi.section(CodeNotesBundle.message("panel.section.basic"), CodeNotesIcons.Info, fields),
+                lower,
+                0.35
+            ),
+            BorderLayout.CENTER
+        )
         return panel
     }
 

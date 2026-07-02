@@ -31,6 +31,9 @@ class CodeReviewRepository(private val project: Project) {
     fun issues(reviewId: String): List<CodeReviewIssueEntity> =
         storage.getCodeReviewIssues(reviewId).sortedByDescending { it.updatedAt }
 
+    fun allIssues(): List<CodeReviewIssueEntity> =
+        storage.getAllCodeReviewIssues().sortedByDescending { it.updatedAt }
+
     fun findIssue(id: String): CodeReviewIssueEntity? = storage.findCodeReviewIssueById(id)
 
     fun addReview(review: CodeReviewEntity) {
