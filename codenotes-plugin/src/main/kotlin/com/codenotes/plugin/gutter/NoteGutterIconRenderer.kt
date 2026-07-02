@@ -2,7 +2,7 @@ package com.codenotes.plugin.gutter
 
 import com.codenotes.plugin.model.NoteEntity
 import com.codenotes.plugin.model.NoteType
-import com.codenotes.plugin.state.NoteStorageService
+import com.codenotes.plugin.repository.NoteRepository
 import com.codenotes.plugin.ui.NoteEditorDialog
 import com.codenotes.plugin.util.CodeNotesBundle
 import com.intellij.icons.AllIcons
@@ -18,7 +18,7 @@ class NoteGutterIconRenderer(
     override fun getIcon(): Icon = AllIcons.General.BalloonInformation
 
     override fun getTooltipText(): String {
-        val note = NoteStorageService.getInstance(project).findById(noteId) ?: return ""
+        val note = NoteRepository.getInstance(project).findById(noteId) ?: return ""
         val typeLabel = NoteType.safeValueOf(note.type).icon
         val title = note.title.ifBlank { "(untitled)" }
         return "${CodeNotesBundle.message("gutter.tooltip.prefix")} $typeLabel $title\n${note.summary}"
@@ -28,11 +28,11 @@ class NoteGutterIconRenderer(
 
     override fun getClickAction() = object : com.intellij.openapi.actionSystem.AnAction() {
         override fun actionPerformed(e: com.intellij.openapi.actionSystem.AnActionEvent) {
-            val note: NoteEntity = NoteStorageService.getInstance(project).findById(noteId) ?: return
+            val note: NoteEntity = NoteRepository.getInstance(project).findById(noteId) ?: return
             val dialog = NoteEditorDialog(project, note)
             if (dialog.showAndGet()) {
                 dialog.applyTo(note)
-                NoteStorageService.getInstance(project).updateNote(note)
+                NoteRepository.getInstance(project).update(note)
             }
         }
     }

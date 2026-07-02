@@ -14,6 +14,8 @@ repositories {
 // No extra runtime dependencies beyond the IntelliJ Platform + Kotlin stdlib,
 // so the plugin has zero external attack surface / dependency conflicts.
 dependencies {
+    testImplementation(kotlin("test"))
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 intellij {
@@ -33,6 +35,9 @@ tasks {
     }
     withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
         kotlinOptions.jvmTarget = "17"
+    }
+    test {
+        useJUnitPlatform()
     }
 
     patchPluginXml {
