@@ -3,7 +3,8 @@ package com.codenotes.plugin.settings
 import com.intellij.openapi.components.*
 
 class SettingsBean {
-    var languageOverride: String = "" // "" = follow IDE, else "en" / "zh-CN"
+    var languageOverride: String = "zh-CN" // "" = follow IDE, else "en" / "zh-CN"
+    var codeReviewTemplatePath: String = ""
 }
 
 @Service(Service.Level.APP)
@@ -15,6 +16,10 @@ class CodeNotesSettingsState : PersistentStateComponent<SettingsBean> {
     var languageOverride: String
         get() = bean.languageOverride
         set(value) { bean.languageOverride = value }
+
+    var codeReviewTemplatePath: String
+        get() = bean.codeReviewTemplatePath
+        set(value) { bean.codeReviewTemplatePath = value }
 
     override fun getState(): SettingsBean = bean
 

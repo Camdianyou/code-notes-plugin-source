@@ -29,6 +29,7 @@
 
         <projectService serviceImplementation="com.codenotes.plugin.state.NoteStorageService"/>
         <projectService serviceImplementation="com.codenotes.plugin.repository.NoteRepository"/>
+        <projectService serviceImplementation="com.codenotes.plugin.repository.CodeReviewRepository"/>
         <applicationService serviceImplementation="com.codenotes.plugin.settings.CodeNotesSettingsState"/>
 
         <applicationConfigurable
@@ -52,6 +53,10 @@
             <action id="CodeNotes.AddClipboardNote"
                     class="com.codenotes.plugin.actions.AddClipboardNoteAction">
                 <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt V"/>
+            </action>
+            <action id="CodeNotes.AddCodeReviewIssue"
+                    class="com.codenotes.plugin.actions.AddCodeReviewIssueAction">
+                <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt R"/>
             </action>
         </group>
     </actions>

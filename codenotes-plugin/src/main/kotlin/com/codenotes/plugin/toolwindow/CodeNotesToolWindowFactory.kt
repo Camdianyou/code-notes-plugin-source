@@ -8,7 +8,7 @@ import com.intellij.ui.content.ContentFactory
 
 class CodeNotesToolWindowFactory : ToolWindowFactory, DumbAware {
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-        val panel = CodeNotesPanel(project)
+        val panel = CodeNotesRootPanel(project)
         val content = ContentFactory.getInstance().createContent(panel, "", false)
         toolWindow.contentManager.addContent(content)
     }
