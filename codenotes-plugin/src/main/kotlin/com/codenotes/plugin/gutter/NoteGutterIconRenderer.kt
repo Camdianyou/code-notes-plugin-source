@@ -6,6 +6,7 @@ import com.codenotes.plugin.repository.NoteRepository
 import com.codenotes.plugin.ui.NoteEditorDialog
 import com.codenotes.plugin.util.CodeNotesBundle
 import com.codenotes.plugin.util.CodeNotesIcons
+import com.codenotes.plugin.util.LocalizedEnumLabels
 import com.intellij.openapi.editor.markup.GutterIconRenderer
 import com.intellij.openapi.project.Project
 import javax.swing.Icon
@@ -19,7 +20,7 @@ class NoteGutterIconRenderer(
 
     override fun getTooltipText(): String {
         val note = NoteRepository.getInstance(project).findById(noteId) ?: return ""
-        val typeLabel = NoteType.safeValueOf(note.type).icon
+        val typeLabel = (LocalizedEnumLabels.noteTypeCode(note.type) ?: NoteType.COMMENT).icon
         val title = note.title.ifBlank { "(untitled)" }
         return "${CodeNotesBundle.message("gutter.tooltip.prefix")} $typeLabel $title\n${note.summary}"
     }

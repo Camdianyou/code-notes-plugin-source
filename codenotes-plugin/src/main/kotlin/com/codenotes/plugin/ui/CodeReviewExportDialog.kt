@@ -2,8 +2,13 @@ package com.codenotes.plugin.ui
 
 import com.codenotes.plugin.model.CodeReviewEntity
 import com.codenotes.plugin.model.CodeReviewIssueEntity
+import com.codenotes.plugin.model.NoteType
+import com.codenotes.plugin.model.TodoPriority
+import com.codenotes.plugin.model.TodoStatus
+import com.codenotes.plugin.review.CodeReviewDefaults
 import com.codenotes.plugin.review.CodeReviewValidationResult
 import com.codenotes.plugin.util.CodeNotesBundle
+import com.codenotes.plugin.util.LocalizedEnumLabels
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.components.JBScrollPane
@@ -50,14 +55,15 @@ class CodeReviewExportDialog(
         validation.missingIssueFields.keys
             .mapNotNull { issueId -> issues.firstOrNull { it.id == issueId } }
             .forEach { issue ->
+                CodeReviewDefaults.normalizeIssueDefaults(issue)
                 issueModel.addRow(
                     arrayOf(
                         issue.id,
                         issue.title,
                         issue.description,
-                        issue.issueType,
-                        issue.severity,
-                        issue.status,
+                        LocalizedEnumLabels.noteType(issue.issueType),
+                        LocalizedEnumLabels.priority(issue.severity),
+                        LocalizedEnumLabels.status(issue.status),
                         issue.owner,
                         issue.suggestion
                     )
@@ -97,12 +103,11 @@ class CodeReviewExportDialog(
             val issue = issues.firstOrNull { it.id == issueId } ?: continue
             issue.title = issueModel.getValueAt(row, 1)?.toString()?.trim().orEmpty()
             issue.description = issueModel.getValueAt(row, 2)?.toString()?.trim().orEmpty()
-            issue.issueType = issueModel.getValueAt(row, 3)?.toString()?.trim().orEmpty()
-            issue.severity = issueModel.getValueAt(row, 4)?.toString()?.trim().orEmpty()
-            issue.status = issueModel.getValueAt(row, 5)?.toString()?.trim().orEmpty()
+            issue.issueType = (LocalizedEnumLabels.noteTypeCode(issueModel.getValueAt(row, 3)?.toString().orEmpty()) ?: NoteType.REVIEW).name
+            issue.severity = (LocalizedEnumLabels.priorityCode(issueModel.getValueAt(row, 4)?.toString().orEmpty()) ?: TodoPriority.MEDIUM).name
+            issue.status = (LocalizedEnumLabels.statusCode(issueModel.getValueAt(row, 5)?.toString().orEmpty()) ?: TodoStatus.TODO).name
             issue.owner = issueModel.getValueAt(row, 6)?.toString()?.trim().orEmpty()
             issue.suggestion = issueModel.getValueAt(row, 7)?.toString()?.trim().orEmpty()
         }
     }
 }
-

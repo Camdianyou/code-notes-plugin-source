@@ -7,6 +7,7 @@ import com.codenotes.plugin.model.NoteType
 import com.codenotes.plugin.model.TodoPriority
 import com.codenotes.plugin.model.TodoStatus
 import com.codenotes.plugin.state.NoteStorageState
+import com.codenotes.plugin.util.LocalizedEnumLabels
 import org.apache.poi.ss.usermodel.WorkbookFactory
 import java.io.File
 import kotlin.test.Test
@@ -25,7 +26,18 @@ class CodeReviewFeatureTest {
     }
 
     @Test
-    fun `creates code review issue snapshot from note`() {
+    fun `localized enum labels convert both directions`() {
+        assertEquals("缺陷", LocalizedEnumLabels.noteType(NoteType.BUG))
+        assertEquals(NoteType.BUG, LocalizedEnumLabels.noteTypeCode("缺陷"))
+        assertEquals(NoteType.BUG, LocalizedEnumLabels.noteTypeCode("BUG"))
+        assertEquals("高", LocalizedEnumLabels.priority(TodoPriority.HIGH))
+        assertEquals(TodoPriority.HIGH, LocalizedEnumLabels.priorityCode("高"))
+        assertEquals("待办", LocalizedEnumLabels.status(TodoStatus.TODO))
+        assertEquals(TodoStatus.TODO, LocalizedEnumLabels.statusCode("待办"))
+    }
+
+    @Test
+    fun `creates code review issue snapshot from note with stable enum codes`() {
         val note = NoteEntity().apply {
             id = "note-1"
             title = "空指针风险"
@@ -35,9 +47,9 @@ class CodeReviewFeatureTest {
             lineStart = 9
             lineEnd = 10
             symbolQualifiedName = "com.example.Foo.bar"
-            type = NoteType.BUG.name
-            priority = TodoPriority.HIGH.name
-            status = TodoStatus.TODO.name
+            type = "缺陷"
+            priority = "高"
+            status = "待办"
             dueDate = "2026-07-03"
         }
 
@@ -57,7 +69,7 @@ class CodeReviewFeatureTest {
     }
 
     @Test
-    fun `validator reports missing review and issue fields`() {
+    fun `validator only reports fields that need user input`() {
         val review = CodeReviewEntity()
         val issue = CodeReviewIssueEntity().apply {
             id = "issue-1"
@@ -70,11 +82,15 @@ class CodeReviewFeatureTest {
         assertTrue("会议名称" in result.missingReviewFields)
         assertTrue("记录人" in result.missingReviewFields)
         assertTrue("标题" in result.missingIssueFields.getValue("issue-1"))
+        assertTrue("问题描述" in result.missingIssueFields.getValue("issue-1"))
         assertTrue("行号或符号" in result.missingIssueFields.getValue("issue-1"))
+        assertFalse("问题类型" in result.missingIssueFields.getValue("issue-1"))
+        assertFalse("严重程度" in result.missingIssueFields.getValue("issue-1"))
+        assertFalse("状态" in result.missingIssueFields.getValue("issue-1"))
     }
 
     @Test
-    fun `exports code review report into xlsx template`() {
+    fun `exports code review report with Chinese enum labels`() {
         val review = CodeReviewEntity().apply {
             meetingName = "支付模块代码走查"
             meetingDate = "2026-07-02"
@@ -111,7 +127,12 @@ class CodeReviewFeatureTest {
             assertEquals("支付模块代码走查", sheet.getRow(1).getCell(1).stringCellValue)
             assertEquals("2026-07-02", sheet.getRow(2).getCell(1).stringCellValue)
             assertTrue(sheet.getRow(10).getCell(0).stringCellValue.contains("支付下单与回调"))
-            assertTrue(sheet.getRow(17).getCell(0).stringCellValue.contains("金额精度风险"))
+            val issueLine = sheet.getRow(17).getCell(0).stringCellValue
+            assertTrue(issueLine.contains("金额精度风险"))
+            assertTrue(issueLine.contains("[高/待办/缺陷]"))
+            assertFalse(issueLine.contains("HIGH"))
+            assertFalse(issueLine.contains("TODO"))
+            assertFalse(issueLine.contains("BUG"))
         }
     }
 }

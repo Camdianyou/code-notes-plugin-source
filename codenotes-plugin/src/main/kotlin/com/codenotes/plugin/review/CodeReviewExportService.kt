@@ -4,6 +4,7 @@ import com.codenotes.plugin.model.CodeReviewEntity
 import com.codenotes.plugin.model.CodeReviewIssueEntity
 import com.codenotes.plugin.model.TodoStatus
 import com.codenotes.plugin.settings.CodeNotesSettingsState
+import com.codenotes.plugin.util.LocalizedEnumLabels
 import com.intellij.openapi.project.Project
 import org.apache.poi.ss.usermodel.Cell
 import org.apache.poi.ss.usermodel.WorkbookFactory
@@ -27,6 +28,7 @@ object CodeReviewExportService {
         issues: List<CodeReviewIssueEntity>,
         target: File
     ) {
+        issues.forEach { CodeReviewDefaults.normalizeIssueDefaults(it) }
         WorkbookFactory.create(template).use { workbook ->
             val sheet = workbook.getSheetAt(0)
             sheet.setMergedCellValue(2, 2, review.meetingName)
@@ -43,19 +45,19 @@ object CodeReviewExportService {
 
             val contentLines = buildList {
                 add("走查范围：${review.scope.ifBlank { "未填写" }}")
-                add("问题概览：共 ${issues.size} 个问题，待跟进 ${issues.count { it.status != TodoStatus.DONE.name && it.status != TodoStatus.ARCHIVED.name }} 个。")
+                add("问题概览：共 ${issues.size} 个问题，待跟进 ${issues.count { !it.isClosed() }} 个。")
                 if (review.conclusion.isNotBlank()) add("走查结论：${review.conclusion}")
                 if (review.notes.isNotBlank()) add("补充说明：${review.notes}")
             }
             sheet.writeMergedLines(11, 6, 17, contentLines)
 
-            val followUpIssues = issues.filter { it.status != TodoStatus.DONE.name && it.status != TodoStatus.ARCHIVED.name }
+            val followUpIssues = issues.filter { !it.isClosed() }
             sheet.writeMergedLines(18, 5, 23, followUpIssues.mapIndexed { index, issue -> issueLine(index + 1, issue) })
 
             val otherLines = buildList {
-                val closedIssues = issues.filter { it.status == TodoStatus.DONE.name || it.status == TodoStatus.ARCHIVED.name }
+                val closedIssues = issues.filter { it.isClosed() }
                 if (closedIssues.isNotEmpty()) {
-                    add("已完成/归档问题：${closedIssues.joinToString("；") { it.title.ifBlank { it.id } }}")
+                    add("已完成或归档问题：${closedIssues.joinToString("；") { it.title.ifBlank { it.id } }}")
                 }
                 val detachedIssues = issues.filter { it.filePath.isBlank() && it.symbolQualifiedName.isBlank() }
                 if (detachedIssues.isNotEmpty()) {
@@ -81,6 +83,11 @@ object CodeReviewExportService {
         }
     }
 
+    private fun CodeReviewIssueEntity.isClosed(): Boolean {
+        val statusCode = LocalizedEnumLabels.statusCode(status)
+        return statusCode == TodoStatus.DONE || statusCode == TodoStatus.ARCHIVED
+    }
+
     private fun issueLine(index: Int, issue: CodeReviewIssueEntity): String {
         val location = when {
             issue.symbolQualifiedName.isNotBlank() -> issue.symbolQualifiedName
@@ -90,7 +97,10 @@ object CodeReviewExportService {
         }
         val owner = issue.owner.ifBlank { "未指定" }
         val suggestion = issue.suggestion.ifBlank { "未填写" }
-        return "$index. [${issue.severity}/${issue.status}] ${issue.title} - $location；责任人：$owner；建议：$suggestion；描述：${issue.description}"
+        val type = LocalizedEnumLabels.noteType(issue.issueType)
+        val severity = LocalizedEnumLabels.priority(issue.severity)
+        val status = LocalizedEnumLabels.status(issue.status)
+        return "$index. [$severity/$status/$type] ${issue.title} - $location；责任人：$owner；建议：$suggestion；描述：${issue.description}"
     }
 
     private fun org.apache.poi.ss.usermodel.Sheet.setMergedCellValue(rowNumber: Int, columnNumber: Int, value: String) {
@@ -135,3 +145,4 @@ object CodeReviewExportService {
         }
     }
 }
+

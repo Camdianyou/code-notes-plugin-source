@@ -16,9 +16,11 @@ import com.codenotes.plugin.model.TodoPriority
 import com.codenotes.plugin.model.TodoStatus
 import com.codenotes.plugin.repository.CodeReviewRepository
 import com.codenotes.plugin.repository.NoteRepository
+import com.codenotes.plugin.review.CodeReviewDefaults
 import com.codenotes.plugin.review.CodeReviewIssueFactory
 import com.codenotes.plugin.util.AnchorUtil
 import com.codenotes.plugin.util.CodeNotesBundle
+import com.codenotes.plugin.util.LocalizedEnumLabels
 import com.codenotes.plugin.util.MarkdownPreview
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
@@ -45,7 +47,6 @@ import javax.swing.JEditorPane
 import javax.swing.JFileChooser
 import javax.swing.JLabel
 import javax.swing.JList
-import javax.swing.JOptionPane
 import javax.swing.JPanel
 import javax.swing.JSplitPane
 import javax.swing.JTabbedPane
@@ -117,9 +118,9 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
         descriptionArea.wrapStyleWord = true
         previewPane.isEditable = false
         attachmentList.emptyText.text = CodeNotesBundle.message("panel.empty.list")
-        typeCombo.renderer = localizedRenderer<NoteType> { noteTypeLabel(it) }
-        priorityCombo.renderer = localizedRenderer<TodoPriority> { priorityLabel(it) }
-        statusCombo.renderer = localizedRenderer<TodoStatus> { statusLabel(it) }
+        typeCombo.renderer = localizedRenderer<NoteType> { LocalizedEnumLabels.noteType(it) }
+        priorityCombo.renderer = localizedRenderer<TodoPriority> { LocalizedEnumLabels.priority(it) }
+        statusCombo.renderer = localizedRenderer<TodoStatus> { LocalizedEnumLabels.status(it) }
 
         add(toolbar(), BorderLayout.NORTH)
         add(workspace(), BorderLayout.CENTER)
@@ -227,7 +228,7 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
             FilterItem("favorite", CodeNotesBundle.message("panel.filter.favorites"), favoritesOnly = true)
         )
         TodoStatus.entries.forEach { status ->
-            filterModel.addElement(FilterItem("status:${status.name}", statusLabel(status), statuses = setOf(status.name)))
+            filterModel.addElement(FilterItem("status:${status.name}", LocalizedEnumLabels.status(status), statuses = setOf(status.name)))
         }
         notes.flatMap { it.tags.split(',') }
             .map { it.trim() }
@@ -260,13 +261,13 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
     private fun loadSelectedNote() {
         val note = noteList.selectedValue ?: return
         loading = true
-        typeCombo.selectedItem = NoteType.safeValueOf(note.type)
+        typeCombo.selectedItem = LocalizedEnumLabels.noteTypeCode(note.type) ?: NoteType.COMMENT
         titleField.text = note.title
         summaryField.text = note.summary
         descriptionArea.text = note.description
         tagsField.text = note.tags
-        priorityCombo.selectedItem = runCatching { TodoPriority.valueOf(note.priority) }.getOrDefault(TodoPriority.MEDIUM)
-        statusCombo.selectedItem = runCatching { TodoStatus.valueOf(note.status) }.getOrDefault(TodoStatus.TODO)
+        priorityCombo.selectedItem = LocalizedEnumLabels.priorityCode(note.priority) ?: TodoPriority.MEDIUM
+        statusCombo.selectedItem = LocalizedEnumLabels.statusCode(note.status) ?: TodoStatus.TODO
         dueDateField.text = note.dueDate
         favoriteBox.isSelected = note.favorite
         anchorLabel.text = when (note.anchorType) {
@@ -367,24 +368,14 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
         }
         if (notes.isEmpty()) return
         val reviewRepository = CodeReviewRepository.getInstance(project)
-        val reviews = reviewRepository.activeReviews()
-        if (reviews.isEmpty()) {
-            JOptionPane.showMessageDialog(this, CodeNotesBundle.message("review.error.noReview"))
-            return
-        }
-        val review = JOptionPane.showInputDialog(
-            this,
-            CodeNotesBundle.message("review.addToReview.prompt"),
-            CodeNotesBundle.message("panel.action.addToReview"),
-            JOptionPane.PLAIN_MESSAGE,
-            null,
-            reviews.toTypedArray(),
-            reviews.first()
-        ) as? com.codenotes.plugin.model.CodeReviewEntity ?: return
+        val review = CodeReviewDefaults.getOrCreateDefaultReview(reviewRepository)
         notes.forEach { note ->
             reviewRepository.addIssue(CodeReviewIssueFactory.fromNote(review.id, note))
         }
-        JOptionPane.showMessageDialog(this, CodeNotesBundle.message("notification.reviewIssueAdded"))
+        com.intellij.notification.NotificationGroupManager.getInstance()
+            .getNotificationGroup("CodeNotes.Notifications")
+            .createNotification(CodeNotesBundle.message("notification.reviewIssueAdded"), com.intellij.notification.NotificationType.INFORMATION)
+            .notify(project)
     }
 
     private fun navigateToSelected() {
@@ -452,7 +443,9 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
             if (note != null) {
                 val title = note.title.ifBlank { CodeNotesBundle.message("panel.default.untitled") }
                 val location = if (note.symbolQualifiedName.isNotBlank()) note.symbolQualifiedName else note.filePath
-                component.text = "${NoteType.safeValueOf(note.type).icon} $title  ·  $location"
+                val type = LocalizedEnumLabels.noteType(note.type)
+                val icon = (LocalizedEnumLabels.noteTypeCode(note.type) ?: NoteType.COMMENT).icon
+                component.text = "$icon $title  ·  $type  ·  $location"
             }
             component.border = EmptyBorder(6, 8, 6, 8)
             return component
@@ -474,15 +467,6 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
             return component
         }
     }
-
-    private fun noteTypeLabel(type: NoteType): String =
-        CodeNotesBundle.message("note.type.${type.name.lowercase()}")
-
-    private fun priorityLabel(priority: TodoPriority): String =
-        CodeNotesBundle.message("todo.priority.${priority.name.lowercase()}")
-
-    private fun statusLabel(status: TodoStatus): String =
-        CodeNotesBundle.message("todo.status.${status.name.lowercase()}")
 
     private fun symbolKindLabel(kind: String): String =
         when (kind) {

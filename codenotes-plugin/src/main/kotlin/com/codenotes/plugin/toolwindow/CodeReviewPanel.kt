@@ -7,15 +7,18 @@ import com.codenotes.plugin.model.CodeReviewEntity
 import com.codenotes.plugin.model.CodeReviewIssueEntity
 import com.codenotes.plugin.model.CodeReviewStatus
 import com.codenotes.plugin.model.NoteEntity
+import com.codenotes.plugin.model.NoteType
 import com.codenotes.plugin.model.TodoPriority
 import com.codenotes.plugin.model.TodoStatus
 import com.codenotes.plugin.repository.CodeReviewRepository
 import com.codenotes.plugin.repository.NoteRepository
+import com.codenotes.plugin.review.CodeReviewDefaults
 import com.codenotes.plugin.review.CodeReviewExportService
 import com.codenotes.plugin.review.CodeReviewExportValidator
 import com.codenotes.plugin.review.CodeReviewIssueFactory
 import com.codenotes.plugin.ui.CodeReviewExportDialog
 import com.codenotes.plugin.util.CodeNotesBundle
+import com.codenotes.plugin.util.LocalizedEnumLabels
 import com.intellij.notification.Notification
 import com.intellij.notification.NotificationAction
 import com.intellij.notification.NotificationGroupManager
@@ -34,8 +37,6 @@ import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.GridLayout
-import java.text.SimpleDateFormat
-import java.util.Date
 import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
 import javax.swing.JButton
@@ -81,7 +82,7 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
     private val issueFileField = JBTextField()
     private val issueLineField = JBTextField()
     private val issueSymbolField = JBTextField()
-    private val issueTypeField = JBTextField()
+    private val issueTypeCombo = JComboBox(NoteType.entries.toTypedArray())
     private val severityCombo = JComboBox(TodoPriority.entries.toTypedArray())
     private val issueStatusCombo = JComboBox(TodoStatus.entries.toTypedArray())
     private val ownerField = JBTextField()
@@ -123,9 +124,10 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
             it.lineWrap = true
             it.wrapStyleWord = true
         }
-        reviewStatusCombo.renderer = localizedRenderer<CodeReviewStatus> { CodeNotesBundle.message("review.status.${it.name.lowercase()}") }
-        severityCombo.renderer = localizedRenderer<TodoPriority> { CodeNotesBundle.message("todo.priority.${it.name.lowercase()}") }
-        issueStatusCombo.renderer = localizedRenderer<TodoStatus> { CodeNotesBundle.message("todo.status.${it.name.lowercase()}") }
+        reviewStatusCombo.renderer = localizedRenderer<CodeReviewStatus> { LocalizedEnumLabels.reviewStatus(it) }
+        issueTypeCombo.renderer = localizedRenderer<NoteType> { LocalizedEnumLabels.noteType(it) }
+        severityCombo.renderer = localizedRenderer<TodoPriority> { LocalizedEnumLabels.priority(it) }
+        issueStatusCombo.renderer = localizedRenderer<TodoStatus> { LocalizedEnumLabels.status(it) }
 
         add(toolbar(), BorderLayout.NORTH)
         add(workspace(), BorderLayout.CENTER)
@@ -206,7 +208,7 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
         fields.add(JLabel(CodeNotesBundle.message("review.field.filePath"))); fields.add(issueFileField)
         fields.add(JLabel(CodeNotesBundle.message("review.field.line"))); fields.add(issueLineField)
         fields.add(JLabel(CodeNotesBundle.message("review.field.symbol"))); fields.add(issueSymbolField)
-        fields.add(JLabel(CodeNotesBundle.message("review.field.issueType"))); fields.add(issueTypeField)
+        fields.add(JLabel(CodeNotesBundle.message("review.field.issueType"))); fields.add(issueTypeCombo)
         fields.add(JLabel(CodeNotesBundle.message("review.field.severity"))); fields.add(severityCombo)
         fields.add(JLabel(CodeNotesBundle.message("review.field.status"))); fields.add(issueStatusCombo)
         fields.add(JLabel(CodeNotesBundle.message("review.field.owner"))); fields.add(ownerField)
@@ -270,7 +272,7 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
         scopeArea.text = review.scope
         conclusionArea.text = review.conclusion
         notesArea.text = review.notes
-        reviewStatusCombo.selectedItem = runCatching { CodeReviewStatus.valueOf(review.status) }.getOrDefault(CodeReviewStatus.OPEN)
+        reviewStatusCombo.selectedItem = LocalizedEnumLabels.reviewStatusCode(review.status) ?: CodeReviewStatus.OPEN
         loading = false
     }
 
@@ -282,9 +284,9 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
         issueFileField.text = issue.filePath
         issueLineField.text = if (issue.lineStart >= 0) (issue.lineStart + 1).toString() else ""
         issueSymbolField.text = issue.symbolQualifiedName
-        issueTypeField.text = issue.issueType
-        severityCombo.selectedItem = runCatching { TodoPriority.valueOf(issue.severity) }.getOrDefault(TodoPriority.MEDIUM)
-        issueStatusCombo.selectedItem = runCatching { TodoStatus.valueOf(issue.status) }.getOrDefault(TodoStatus.TODO)
+        issueTypeCombo.selectedItem = LocalizedEnumLabels.noteTypeCode(issue.issueType) ?: NoteType.REVIEW
+        severityCombo.selectedItem = LocalizedEnumLabels.priorityCode(issue.severity) ?: TodoPriority.MEDIUM
+        issueStatusCombo.selectedItem = LocalizedEnumLabels.statusCode(issue.status) ?: TodoStatus.TODO
         ownerField.text = issue.owner
         dueDateField.text = issue.dueDate
         suggestionArea.text = issue.suggestion
@@ -294,13 +296,7 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
     }
 
     private fun createReview() {
-        val review = CodeReviewEntity().apply {
-            meetingName = CodeNotesBundle.message("review.default.meetingName")
-            meetingDate = SimpleDateFormat("yyyy-MM-dd").format(Date())
-            recorder = System.getProperty("user.name") ?: ""
-            host = recorder
-            topic = CodeNotesBundle.message("review.default.topic")
-        }
+        val review = CodeReviewDefaults.newTodayReview()
         reviewRepository.addReview(review)
         refreshReviews(keepSelection = true)
     }
@@ -336,7 +332,7 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
         val issue = CodeReviewIssueEntity().apply {
             reviewId = review.id
             title = CodeNotesBundle.message("review.default.issueTitle")
-            issueType = CodeNotesBundle.message("note.type.review")
+            issueType = NoteType.REVIEW.name
             severity = TodoPriority.MEDIUM.name
             status = TodoStatus.TODO.name
         }
@@ -345,7 +341,7 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
     }
 
     private fun addNoteIssue() {
-        val review = reviewList.selectedValue ?: return
+        val review = reviewList.selectedValue ?: CodeReviewDefaults.getOrCreateDefaultReview(reviewRepository)
         val notes = noteRepository.allNotes()
         if (notes.isEmpty()) return
         val selected = JOptionPane.showInputDialog(
@@ -370,7 +366,7 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
         issue.lineStart = issueLineField.text.trim().toIntOrNull()?.let { it - 1 } ?: -1
         issue.lineEnd = issue.lineStart
         issue.symbolQualifiedName = issueSymbolField.text.trim()
-        issue.issueType = issueTypeField.text.trim()
+        issue.issueType = (issueTypeCombo.selectedItem as NoteType).name
         issue.severity = (severityCombo.selectedItem as TodoPriority).name
         issue.status = (issueStatusCombo.selectedItem as TodoStatus).name
         issue.owner = ownerField.text.trim()
@@ -388,8 +384,9 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
     private fun exportSelectedReview() {
         saveSelectedReview()
         saveSelectedIssue()
-        val review = reviewList.selectedValue ?: return
+        val review = reviewList.selectedValue ?: CodeReviewDefaults.getOrCreateDefaultReview(reviewRepository)
         val issues = reviewRepository.issues(review.id)
+        issues.forEach { CodeReviewDefaults.normalizeIssueDefaults(it) }
         val validation = CodeReviewExportValidator.validate(review, issues)
         if (!validation.isValid) {
             val dialog = CodeReviewExportDialog(project, review, issues, validation)
@@ -403,7 +400,7 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
             }
         }
         val chooser = JFileChooser()
-        chooser.selectedFile = java.io.File("${review.meetingName.ifBlank { "code-review" }}.xlsx")
+        chooser.selectedFile = java.io.File("${review.meetingName.ifBlank { "代码走查报告" }}.xlsx")
         if (chooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
             val target = chooser.selectedFile
             CodeReviewExportService.export(project, review, issues, target)
@@ -446,7 +443,7 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
             val review = value as? CodeReviewEntity
             if (review != null) {
                 val status = runCatching { CodeReviewStatus.valueOf(review.status) }
-                    .map { CodeNotesBundle.message("review.status.${it.name.lowercase()}") }
+                    .map { LocalizedEnumLabels.reviewStatus(it) }
                     .getOrDefault(review.status)
                 component.text = "${review.meetingName.ifBlank { CodeNotesBundle.message("review.default.meetingName") }} - $status"
             }
@@ -467,10 +464,10 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
             val issue = value as? CodeReviewIssueEntity
             if (issue != null) {
                 val location = issue.symbolQualifiedName.ifBlank { issue.filePath }
-                val severity = runCatching { TodoPriority.valueOf(issue.severity) }
-                    .map { CodeNotesBundle.message("todo.priority.${it.name.lowercase()}") }
-                    .getOrDefault(issue.severity)
-                component.text = "$severity - ${issue.title.ifBlank { CodeNotesBundle.message("review.default.issueTitle") }} - $location"
+                val severity = LocalizedEnumLabels.priority(issue.severity)
+                val status = LocalizedEnumLabels.status(issue.status)
+                val type = LocalizedEnumLabels.noteType(issue.issueType)
+                component.text = "$severity/$status/$type - ${issue.title.ifBlank { CodeNotesBundle.message("review.default.issueTitle") }} - $location"
             }
             component.border = EmptyBorder(6, 8, 6, 8)
             return component

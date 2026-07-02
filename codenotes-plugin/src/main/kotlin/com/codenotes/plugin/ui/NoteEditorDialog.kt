@@ -5,15 +5,19 @@ import com.codenotes.plugin.model.NoteType
 import com.codenotes.plugin.model.TodoPriority
 import com.codenotes.plugin.model.TodoStatus
 import com.codenotes.plugin.util.CodeNotesBundle
+import com.codenotes.plugin.util.LocalizedEnumLabels
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.components.JBTextArea
 import com.intellij.ui.components.JBTextField
 import com.intellij.util.ui.FormBuilder
+import java.awt.Component
 import java.awt.Dimension
+import javax.swing.DefaultListCellRenderer
 import javax.swing.JComboBox
 import javax.swing.JComponent
+import javax.swing.JList
 import javax.swing.JPanel
 
 /**
@@ -42,14 +46,17 @@ class NoteEditorDialog(
     init {
         title = if (existing == null) CodeNotesBundle.message("dialog.title.new")
                 else CodeNotesBundle.message("dialog.title.edit")
+        typeCombo.renderer = localizedRenderer<NoteType> { LocalizedEnumLabels.noteType(it) }
+        priorityCombo.renderer = localizedRenderer<TodoPriority> { LocalizedEnumLabels.priority(it) }
+        statusCombo.renderer = localizedRenderer<TodoStatus> { LocalizedEnumLabels.status(it) }
         existing?.let {
-            typeCombo.selectedItem = NoteType.safeValueOf(it.type)
+            typeCombo.selectedItem = LocalizedEnumLabels.noteTypeCode(it.type) ?: NoteType.COMMENT
             titleField.text = it.title
             summaryField.text = it.summary
             descriptionArea.text = it.description
             tagsField.text = it.tags
-            priorityCombo.selectedItem = runCatching { TodoPriority.valueOf(it.priority) }.getOrDefault(TodoPriority.MEDIUM)
-            statusCombo.selectedItem = runCatching { TodoStatus.valueOf(it.status) }.getOrDefault(TodoStatus.TODO)
+            priorityCombo.selectedItem = LocalizedEnumLabels.priorityCode(it.priority) ?: TodoPriority.MEDIUM
+            statusCombo.selectedItem = LocalizedEnumLabels.statusCode(it.status) ?: TodoStatus.TODO
             dueDateField.text = it.dueDate
         }
         init()
@@ -81,5 +88,20 @@ class NoteEditorDialog(
         note.priority = (priorityCombo.selectedItem as TodoPriority).name
         note.status = (statusCombo.selectedItem as TodoStatus).name
         note.dueDate = dueDateField.text.trim()
+    }
+
+    private fun <T> localizedRenderer(label: (T) -> String) = object : DefaultListCellRenderer() {
+        override fun getListCellRendererComponent(
+            list: JList<*>?,
+            value: Any?,
+            index: Int,
+            isSelected: Boolean,
+            cellHasFocus: Boolean
+        ): Component {
+            val component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus) as javax.swing.JLabel
+            @Suppress("UNCHECKED_CAST")
+            component.text = value?.let { label(it as T) }.orEmpty()
+            return component
+        }
     }
 }

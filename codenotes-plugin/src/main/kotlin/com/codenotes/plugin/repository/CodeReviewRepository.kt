@@ -7,6 +7,7 @@ import com.codenotes.plugin.model.CodeReviewEntity
 import com.codenotes.plugin.model.CodeReviewIssueEntity
 import com.codenotes.plugin.model.CodeReviewStatus
 import com.codenotes.plugin.state.NoteStorageService
+import com.codenotes.plugin.util.LocalizedEnumLabels
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
@@ -21,7 +22,7 @@ class CodeReviewRepository(private val project: Project) {
         storage.getCodeReviews().sortedByDescending { it.updatedAt }
 
     fun activeReviews(): List<CodeReviewEntity> =
-        allReviews().filter { it.status != CodeReviewStatus.ARCHIVED.name }
+        allReviews().filter { LocalizedEnumLabels.reviewStatusCode(it.status) != CodeReviewStatus.ARCHIVED }
 
     fun latestActiveReview(): CodeReviewEntity? = activeReviews().firstOrNull()
 
@@ -89,4 +90,3 @@ class CodeReviewRepository(private val project: Project) {
         fun getInstance(project: Project): CodeReviewRepository = project.service()
     }
 }
-

@@ -1,13 +1,13 @@
 package com.codenotes.plugin.actions
 
 import com.codenotes.plugin.anchor.SymbolAnchorService
-import com.codenotes.plugin.model.CodeReviewEntity
 import com.codenotes.plugin.model.NoteAnchor
 import com.codenotes.plugin.model.NoteEntity
 import com.codenotes.plugin.model.NoteScope
 import com.codenotes.plugin.model.NoteType
 import com.codenotes.plugin.repository.CodeReviewRepository
 import com.codenotes.plugin.repository.NoteRepository
+import com.codenotes.plugin.review.CodeReviewDefaults
 import com.codenotes.plugin.review.CodeReviewIssueFactory
 import com.codenotes.plugin.ui.NoteEditorDialog
 import com.codenotes.plugin.util.AnchorUtil
@@ -22,8 +22,6 @@ import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.VirtualFile
-import java.text.SimpleDateFormat
-import java.util.Date
 
 class AddCodeReviewIssueAction : AnAction(
     { CodeNotesBundle.message("action.addReviewIssue.text") },
@@ -48,7 +46,7 @@ class AddCodeReviewIssueAction : AnAction(
 
         NoteRepository.getInstance(project).add(note)
         val reviewRepository = CodeReviewRepository.getInstance(project)
-        val review = reviewRepository.latestActiveReview() ?: createDefaultReview(reviewRepository)
+        val review = CodeReviewDefaults.getOrCreateDefaultReview(reviewRepository)
         reviewRepository.addIssue(CodeReviewIssueFactory.fromNote(review.id, note))
 
         NotificationGroupManager.getInstance()
@@ -92,19 +90,5 @@ class AddCodeReviewIssueAction : AnAction(
                 fallbackTextHash = anchor.fallbackHash
             }
         }
-    }
-
-    private fun createDefaultReview(repository: CodeReviewRepository): CodeReviewEntity {
-        val today = SimpleDateFormat("yyyy-MM-dd").format(Date())
-        val user = System.getProperty("user.name") ?: ""
-        val review = CodeReviewEntity().apply {
-            meetingName = CodeNotesBundle.message("review.default.meetingName")
-            meetingDate = today
-            host = user
-            recorder = user
-            topic = CodeNotesBundle.message("review.default.topic")
-        }
-        repository.addReview(review)
-        return review
     }
 }
