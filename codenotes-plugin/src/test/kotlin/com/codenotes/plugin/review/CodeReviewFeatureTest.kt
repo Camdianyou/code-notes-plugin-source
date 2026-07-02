@@ -104,6 +104,7 @@ class CodeReviewFeatureTest {
             topic = "\u652F\u4ED8\u6A21\u5757\u8D70\u67E5"
             scope = "\u652F\u4ED8\u4E0B\u5355\u4E0E\u56DE\u8C03"
             conclusion = "\u9700\u8981\u4FEE\u590D\u9AD8\u4F18\u95EE\u9898"
+            notes = "\u6CE8\u610F\u4E00\uFF1A\u5148\u5408\u5E76\u9AD8\u98CE\u9669\u4FEE\u590D\n\n\u6CE8\u610F\u4E8C\uFF1A\u56DE\u5F52\u8986\u76D6\u8FB9\u754C\u573A\u666F"
         }
         val issues = listOf(
             CodeReviewIssueEntity().apply {
@@ -173,6 +174,12 @@ class CodeReviewFeatureTest {
             val criticalCell = sheet.getRow(20).getCell(0)
             assertTrue(criticalCell.stringCellValue.contains("[\u7D27\u6025]"))
             assertTrue(criticalCell.stringCellValue.contains("UserService.load"))
+
+            val noteLineOne = sheet.getRow(23).getCell(0).stringCellValue
+            val noteLineTwo = sheet.getRow(24).getCell(0).stringCellValue
+            assertTrue(noteLineOne.contains("\u5176\u4ED6\u6CE8\u610F\u4E8B\u9879 1\uFF1A\u6CE8\u610F\u4E00"))
+            assertTrue(noteLineTwo.contains("\u5176\u4ED6\u6CE8\u610F\u4E8B\u9879 2\uFF1A\u6CE8\u610F\u4E8C"))
+            assertFalse(noteLineOne.contains("\u8865\u5145\u8BF4\u660E"))
 
             assertEquals(IndexedColors.RED.index, workbook.getFontAt(highCell.cellStyle.fontIndexAsInt).color)
             assertEquals(IndexedColors.DARK_YELLOW.index, workbook.getFontAt(mediumCell.cellStyle.fontIndexAsInt).color)

@@ -58,7 +58,13 @@ class NoteGutterIconRenderer(
     override fun hashCode(): Int = 31 * marker.kind.hashCode() + marker.id.hashCode()
 
     companion object {
-        fun iconKeyForPriority(priority: String): String = priorityFor(priority).name
+        fun iconKeyForPriority(priority: String): String =
+            when (priorityFor(priority)) {
+                TodoPriority.LOW -> "PIN_LOW"
+                TodoPriority.MEDIUM -> "PIN_MEDIUM"
+                TodoPriority.HIGH -> "PIN_HIGH"
+                TodoPriority.CRITICAL -> "PIN_CRITICAL"
+            }
 
         fun iconForPriority(priority: String): Icon =
             when (priorityFor(priority)) {
