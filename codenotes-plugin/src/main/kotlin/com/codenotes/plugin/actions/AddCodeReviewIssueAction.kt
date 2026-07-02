@@ -12,7 +12,7 @@ import com.codenotes.plugin.review.CodeReviewIssueFactory
 import com.codenotes.plugin.ui.NoteEditorDialog
 import com.codenotes.plugin.util.AnchorUtil
 import com.codenotes.plugin.util.CodeNotesBundle
-import com.intellij.icons.AllIcons
+import com.codenotes.plugin.util.CodeNotesIcons
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionUpdateThread
@@ -28,7 +28,7 @@ import java.util.Date
 class AddCodeReviewIssueAction : AnAction(
     { CodeNotesBundle.message("action.addReviewIssue.text") },
     { CodeNotesBundle.message("action.addReviewIssue.description") },
-    AllIcons.General.BalloonInformation
+    CodeNotesIcons.ReviewIssue
 ) {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 

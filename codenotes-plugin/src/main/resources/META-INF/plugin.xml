@@ -24,7 +24,7 @@
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow id="Code Notes"
                     anchor="right"
-                    icon="AllIcons.General.BalloonInformation"
+                    icon="/icons/toolWindowIcon.svg"
                     factoryClass="com.codenotes.plugin.toolwindow.CodeNotesToolWindowFactory"/>
 
         <projectService serviceImplementation="com.codenotes.plugin.state.NoteStorageService"/>

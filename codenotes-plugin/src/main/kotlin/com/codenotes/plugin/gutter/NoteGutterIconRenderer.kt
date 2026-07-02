@@ -5,7 +5,7 @@ import com.codenotes.plugin.model.NoteType
 import com.codenotes.plugin.repository.NoteRepository
 import com.codenotes.plugin.ui.NoteEditorDialog
 import com.codenotes.plugin.util.CodeNotesBundle
-import com.intellij.icons.AllIcons
+import com.codenotes.plugin.util.CodeNotesIcons
 import com.intellij.openapi.editor.markup.GutterIconRenderer
 import com.intellij.openapi.project.Project
 import javax.swing.Icon
@@ -15,7 +15,7 @@ class NoteGutterIconRenderer(
     private val noteId: String
 ) : GutterIconRenderer() {
 
-    override fun getIcon(): Icon = AllIcons.General.BalloonInformation
+    override fun getIcon(): Icon = CodeNotesIcons.GutterNote
 
     override fun getTooltipText(): String {
         val note = NoteRepository.getInstance(project).findById(noteId) ?: return ""

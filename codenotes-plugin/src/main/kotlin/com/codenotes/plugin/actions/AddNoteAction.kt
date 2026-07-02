@@ -9,7 +9,7 @@ import com.codenotes.plugin.repository.NoteRepository
 import com.codenotes.plugin.ui.NoteEditorDialog
 import com.codenotes.plugin.util.AnchorUtil
 import com.codenotes.plugin.util.CodeNotesBundle
-import com.intellij.icons.AllIcons
+import com.codenotes.plugin.util.CodeNotesIcons
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionUpdateThread
@@ -23,7 +23,7 @@ import com.intellij.openapi.vfs.VirtualFile
 class AddNoteAction : AnAction(
     { CodeNotesBundle.message("action.addNote.text") },
     { CodeNotesBundle.message("action.addNote.description") },
-    AllIcons.General.BalloonInformation
+    CodeNotesIcons.AddNote
 ) {
 
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
