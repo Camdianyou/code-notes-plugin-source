@@ -18,6 +18,8 @@ import com.codenotes.plugin.review.CodeReviewExportValidator
 import com.codenotes.plugin.review.CodeReviewIssueFactory
 import com.codenotes.plugin.ui.CodeReviewExportDialog
 import com.codenotes.plugin.util.CodeNotesBundle
+import com.codenotes.plugin.util.CodeNotesIcons
+import com.codenotes.plugin.util.CodeNotesUi
 import com.codenotes.plugin.util.LocalizedEnumLabels
 import com.intellij.notification.Notification
 import com.intellij.notification.NotificationAction
@@ -39,7 +41,6 @@ import java.awt.Dimension
 import java.awt.GridLayout
 import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
-import javax.swing.JButton
 import javax.swing.JComboBox
 import javax.swing.JFileChooser
 import javax.swing.JLabel
@@ -135,16 +136,16 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
     }
 
     private fun toolbar(): JPanel {
-        val buttons = JPanel()
-        buttons.add(JButton(CodeNotesBundle.message("review.action.newReview")).apply { addActionListener { createReview() } })
-        buttons.add(JButton(CodeNotesBundle.message("review.action.saveReview")).apply { addActionListener { saveSelectedReview() } })
-        buttons.add(JButton(CodeNotesBundle.message("review.action.deleteReview")).apply { addActionListener { deleteSelectedReview() } })
-        buttons.add(JButton(CodeNotesBundle.message("review.action.newIssue")).apply { addActionListener { createIssue() } })
-        buttons.add(JButton(CodeNotesBundle.message("review.action.addNote")).apply { addActionListener { addNoteIssue() } })
-        buttons.add(JButton(CodeNotesBundle.message("review.action.saveIssue")).apply { addActionListener { saveSelectedIssue() } })
-        buttons.add(JButton(CodeNotesBundle.message("review.action.deleteIssue")).apply { addActionListener { deleteSelectedIssue() } })
-        buttons.add(JButton(CodeNotesBundle.message("review.action.open")).apply { addActionListener { navigateToSelectedIssue() } })
-        buttons.add(JButton(CodeNotesBundle.message("review.action.export")).apply { addActionListener { exportSelectedReview() } })
+        val buttons = CodeNotesUi.toolbarPanel()
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("review.action.newReview"), CodeNotesIcons.Meeting, primary = true) { createReview() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("review.action.newIssue"), CodeNotesIcons.ReviewIssue, primary = true) { createIssue() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("review.action.export"), CodeNotesIcons.Export, primary = true) { exportSelectedReview() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("review.action.addNote"), CodeNotesIcons.AddNote) { addNoteIssue() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("review.action.saveReview"), CodeNotesIcons.Save) { saveSelectedReview() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("review.action.saveIssue"), CodeNotesIcons.Save) { saveSelectedIssue() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("review.action.deleteReview"), CodeNotesIcons.Delete) { deleteSelectedReview() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("review.action.deleteIssue"), CodeNotesIcons.Delete) { deleteSelectedIssue() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("review.action.open"), CodeNotesIcons.Open) { navigateToSelectedIssue() })
 
         val panel = JPanel(BorderLayout())
         panel.border = EmptyBorder(6, 8, 6, 8)
@@ -170,8 +171,8 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
 
     private fun detailTabs(): JTabbedPane {
         val tabs = JTabbedPane()
-        tabs.addTab(CodeNotesBundle.message("review.tab.meeting"), reviewDetailPanel())
-        tabs.addTab(CodeNotesBundle.message("review.tab.issue"), issueDetailPanel())
+        tabs.addTab(CodeNotesBundle.message("review.tab.meeting"), CodeNotesIcons.Meeting, reviewDetailPanel())
+        tabs.addTab(CodeNotesBundle.message("review.tab.issue"), CodeNotesIcons.ReviewIssue, issueDetailPanel())
         return tabs
     }
 
@@ -191,14 +192,13 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
         fields.add(JLabel(CodeNotesBundle.message("review.field.status"))); fields.add(reviewStatusCombo)
 
         val textTabs = JTabbedPane()
-        textTabs.addTab(CodeNotesBundle.message("review.field.scope"), JBScrollPane(scopeArea))
-        textTabs.addTab(CodeNotesBundle.message("review.field.conclusion"), JBScrollPane(conclusionArea))
-        textTabs.addTab(CodeNotesBundle.message("review.field.notes"), JBScrollPane(notesArea))
+        textTabs.addTab(CodeNotesBundle.message("review.field.scope"), CodeNotesIcons.Filter, JBScrollPane(scopeArea))
+        textTabs.addTab(CodeNotesBundle.message("review.field.conclusion"), CodeNotesIcons.Status, JBScrollPane(conclusionArea))
+        textTabs.addTab(CodeNotesBundle.message("review.field.notes"), CodeNotesIcons.Info, JBScrollPane(notesArea))
 
-        val panel = JPanel(BorderLayout(0, 8))
-        panel.border = EmptyBorder(10, 12, 10, 12)
-        panel.add(fields, BorderLayout.NORTH)
-        panel.add(textTabs, BorderLayout.CENTER)
+        val panel = CodeNotesUi.detailPanel()
+        panel.add(CodeNotesUi.section(CodeNotesBundle.message("review.section.meeting"), CodeNotesIcons.Meeting, fields), BorderLayout.NORTH)
+        panel.add(CodeNotesUi.section(CodeNotesBundle.message("review.section.reviewContent"), CodeNotesIcons.Markdown, textTabs), BorderLayout.CENTER)
         return panel
     }
 
@@ -216,14 +216,13 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
         fields.add(JLabel(CodeNotesBundle.message("review.field.linkedNote"))); fields.add(linkedNoteLabel)
 
         val textTabs = JTabbedPane()
-        textTabs.addTab(CodeNotesBundle.message("review.field.description"), JBScrollPane(issueDescriptionArea))
-        textTabs.addTab(CodeNotesBundle.message("review.field.suggestion"), JBScrollPane(suggestionArea))
-        textTabs.addTab(CodeNotesBundle.message("review.field.resolution"), JBScrollPane(resolutionArea))
+        textTabs.addTab(CodeNotesBundle.message("review.field.description"), CodeNotesIcons.Markdown, JBScrollPane(issueDescriptionArea))
+        textTabs.addTab(CodeNotesBundle.message("review.field.suggestion"), CodeNotesIcons.Info, JBScrollPane(suggestionArea))
+        textTabs.addTab(CodeNotesBundle.message("review.field.resolution"), CodeNotesIcons.Status, JBScrollPane(resolutionArea))
 
-        val panel = JPanel(BorderLayout(0, 8))
-        panel.border = EmptyBorder(10, 12, 10, 12)
-        panel.add(fields, BorderLayout.NORTH)
-        panel.add(textTabs, BorderLayout.CENTER)
+        val panel = CodeNotesUi.detailPanel()
+        panel.add(CodeNotesUi.section(CodeNotesBundle.message("review.section.issue"), CodeNotesIcons.ReviewIssue, fields), BorderLayout.NORTH)
+        panel.add(CodeNotesUi.section(CodeNotesBundle.message("review.section.followup"), CodeNotesIcons.Priority, textTabs), BorderLayout.CENTER)
         return panel
     }
 
@@ -445,9 +444,11 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
                 val status = runCatching { CodeReviewStatus.valueOf(review.status) }
                     .map { LocalizedEnumLabels.reviewStatus(it) }
                     .getOrDefault(review.status)
-                component.text = "${review.meetingName.ifBlank { CodeNotesBundle.message("review.default.meetingName") }} - $status"
+                val title = review.meetingName.ifBlank { CodeNotesBundle.message("review.default.meetingName") }
+                val date = review.meetingDate.ifBlank { CodeNotesBundle.message("review.meta.noDate") }
+                component.text = CodeNotesUi.htmlTitle(title, "$status / $date")
             }
-            component.border = EmptyBorder(6, 10, 6, 8)
+            CodeNotesUi.tuneListLabel(component, isSelected, CodeNotesIcons.Meeting)
             return component
         }
     }
@@ -467,9 +468,11 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
                 val severity = LocalizedEnumLabels.priority(issue.severity)
                 val status = LocalizedEnumLabels.status(issue.status)
                 val type = LocalizedEnumLabels.noteType(issue.issueType)
-                component.text = "$severity/$status/$type - ${issue.title.ifBlank { CodeNotesBundle.message("review.default.issueTitle") }} - $location"
+                val title = issue.title.ifBlank { CodeNotesBundle.message("review.default.issueTitle") }
+                val meta = location.ifBlank { CodeNotesBundle.message("review.meta.noCode") }
+                component.text = CodeNotesUi.htmlBadge(title, "$severity / $status / $type", meta)
             }
-            component.border = EmptyBorder(6, 8, 6, 8)
+            CodeNotesUi.tuneListLabel(component, isSelected, CodeNotesIcons.ReviewIssue)
             return component
         }
     }

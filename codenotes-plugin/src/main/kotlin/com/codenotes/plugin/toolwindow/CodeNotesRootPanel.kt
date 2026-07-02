@@ -1,6 +1,7 @@
 package com.codenotes.plugin.toolwindow
 
 import com.codenotes.plugin.util.CodeNotesBundle
+import com.codenotes.plugin.util.CodeNotesIcons
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import java.awt.BorderLayout
@@ -13,8 +14,8 @@ class CodeNotesRootPanel(project: Project) : JPanel(BorderLayout()), Disposable 
 
     init {
         val tabs = JTabbedPane()
-        tabs.addTab(CodeNotesBundle.message("root.tab.notes"), notesPanel)
-        tabs.addTab(CodeNotesBundle.message("root.tab.reviews"), reviewPanel)
+        tabs.addTab(CodeNotesBundle.message("root.tab.notes"), CodeNotesIcons.Notes, notesPanel)
+        tabs.addTab(CodeNotesBundle.message("root.tab.reviews"), CodeNotesIcons.Reviews, reviewPanel)
         add(tabs, BorderLayout.CENTER)
     }
 
@@ -23,4 +24,3 @@ class CodeNotesRootPanel(project: Project) : JPanel(BorderLayout()), Disposable 
         reviewPanel.dispose()
     }
 }
-

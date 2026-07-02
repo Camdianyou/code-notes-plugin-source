@@ -20,6 +20,8 @@ import com.codenotes.plugin.review.CodeReviewDefaults
 import com.codenotes.plugin.review.CodeReviewIssueFactory
 import com.codenotes.plugin.util.AnchorUtil
 import com.codenotes.plugin.util.CodeNotesBundle
+import com.codenotes.plugin.util.CodeNotesIcons
+import com.codenotes.plugin.util.CodeNotesUi
 import com.codenotes.plugin.util.LocalizedEnumLabels
 import com.codenotes.plugin.util.MarkdownPreview
 import com.intellij.openapi.fileEditor.FileEditorManager
@@ -41,7 +43,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
-import javax.swing.JButton
 import javax.swing.JComboBox
 import javax.swing.JEditorPane
 import javax.swing.JFileChooser
@@ -129,14 +130,14 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
 
     private fun toolbar(): JPanel {
         val panel = JPanel(BorderLayout(8, 0))
-        val buttons = JPanel()
-        buttons.add(JButton(CodeNotesBundle.message("panel.action.new")).apply { addActionListener { createProjectNote() } })
-        buttons.add(JButton(CodeNotesBundle.message("panel.action.save")).apply { addActionListener { saveSelectedNote() } })
-        buttons.add(JButton(CodeNotesBundle.message("panel.action.delete")).apply { addActionListener { deleteSelectedNote() } })
-        buttons.add(JButton(CodeNotesBundle.message("panel.action.open")).apply { addActionListener { navigateToSelected() } })
-        buttons.add(JButton(CodeNotesBundle.message("panel.action.addToReview")).apply { addActionListener { addSelectedNoteToReview() } })
-        buttons.add(JButton(CodeNotesBundle.message("panel.action.export")).apply { addActionListener { exportNotes() } })
-        buttons.add(JButton(CodeNotesBundle.message("panel.action.import")).apply { addActionListener { importNotes() } })
+        val buttons = CodeNotesUi.toolbarPanel()
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.new"), CodeNotesIcons.AddNote, primary = true) { createProjectNote() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.save"), CodeNotesIcons.Save) { saveSelectedNote() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.delete"), CodeNotesIcons.Delete) { deleteSelectedNote() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.open"), CodeNotesIcons.Open) { navigateToSelected() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.addToReview"), CodeNotesIcons.ReviewIssue) { addSelectedNoteToReview() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.export"), CodeNotesIcons.Export) { exportNotes() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.import"), CodeNotesIcons.Import) { importNotes() })
         panel.border = EmptyBorder(6, 8, 6, 8)
         panel.add(searchField, BorderLayout.CENTER)
         panel.add(buttons, BorderLayout.EAST)
@@ -184,31 +185,30 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
         fields.add(updatedLabel)
 
         val tabs = JTabbedPane()
-        tabs.addTab(CodeNotesBundle.message("panel.tab.markdown"), JBScrollPane(descriptionArea))
-        tabs.addTab(CodeNotesBundle.message("panel.tab.preview"), JBScrollPane(previewPane))
+        tabs.addTab(CodeNotesBundle.message("panel.tab.markdown"), CodeNotesIcons.Markdown, JBScrollPane(descriptionArea))
+        tabs.addTab(CodeNotesBundle.message("panel.tab.preview"), CodeNotesIcons.Preview, JBScrollPane(previewPane))
         tabs.addChangeListener {
             if (tabs.selectedIndex == 1) {
                 previewPane.text = MarkdownPreview.toHtml(descriptionArea.text)
             }
         }
 
-        val panel = JPanel(BorderLayout(0, 8))
-        panel.border = EmptyBorder(10, 12, 10, 12)
-        panel.add(fields, BorderLayout.NORTH)
-        panel.add(tabs, BorderLayout.CENTER)
+        val panel = CodeNotesUi.detailPanel()
+        panel.add(CodeNotesUi.section(CodeNotesBundle.message("panel.section.basic"), CodeNotesIcons.Info, fields), BorderLayout.NORTH)
+        panel.add(CodeNotesUi.section(CodeNotesBundle.message("panel.section.content"), CodeNotesIcons.Markdown, tabs), BorderLayout.CENTER)
         panel.add(attachmentPanel(), BorderLayout.SOUTH)
         return panel
     }
 
     private fun attachmentPanel(): JPanel {
-        val buttons = JPanel()
-        buttons.add(JButton(CodeNotesBundle.message("panel.attachments.add")).apply { addActionListener { addAttachment() } })
-        buttons.add(JButton(CodeNotesBundle.message("panel.attachments.open")).apply { addActionListener { openAttachment() } })
-        buttons.add(JButton(CodeNotesBundle.message("panel.attachments.remove")).apply { addActionListener { removeAttachment() } })
+        val buttons = CodeNotesUi.toolbarPanel()
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.attachments.add"), CodeNotesIcons.Attachment) { addAttachment() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.attachments.open"), CodeNotesIcons.Open) { openAttachment() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.attachments.remove"), CodeNotesIcons.Delete) { removeAttachment() })
         val panel = JPanel(BorderLayout())
         panel.preferredSize = Dimension(100, 120)
         panel.border = EmptyBorder(4, 0, 0, 0)
-        panel.add(JLabel(CodeNotesBundle.message("panel.attachments.title")), BorderLayout.NORTH)
+        panel.add(CodeNotesUi.sectionHeader(CodeNotesBundle.message("panel.attachments.title"), CodeNotesIcons.Attachment), BorderLayout.NORTH)
         panel.add(JBScrollPane(attachmentList), BorderLayout.CENTER)
         panel.add(buttons, BorderLayout.SOUTH)
         return panel
@@ -424,8 +424,16 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
             cellHasFocus: Boolean
         ): Component {
             val component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus) as JLabel
-            component.text = (value as? FilterItem)?.label ?: ""
-            component.border = EmptyBorder(6, 10, 6, 8)
+            val item = value as? FilterItem
+            component.text = item?.label ?: ""
+            val icon = when {
+                item?.key == "all" -> CodeNotesIcons.Notes
+                item?.key == "favorite" -> CodeNotesIcons.Favorite
+                item?.key?.startsWith("status:") == true -> CodeNotesIcons.Status
+                item?.key?.startsWith("tag:") == true -> CodeNotesIcons.Tag
+                else -> CodeNotesIcons.Filter
+            }
+            CodeNotesUi.tuneListLabel(component, isSelected, icon)
             return component
         }
     }
@@ -442,12 +450,16 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
             val note = value as? NoteEntity
             if (note != null) {
                 val title = note.title.ifBlank { CodeNotesBundle.message("panel.default.untitled") }
-                val location = if (note.symbolQualifiedName.isNotBlank()) note.symbolQualifiedName else note.filePath
+                val location = if (note.symbolQualifiedName.isNotBlank()) note.symbolQualifiedName else note.filePath.ifBlank {
+                    CodeNotesBundle.message("panel.anchor.project")
+                }
                 val type = LocalizedEnumLabels.noteType(note.type)
                 val icon = (LocalizedEnumLabels.noteTypeCode(note.type) ?: NoteType.COMMENT).icon
-                component.text = "$icon $title  ·  $type  ·  $location"
+                val priority = LocalizedEnumLabels.priority(note.priority)
+                val status = LocalizedEnumLabels.status(note.status)
+                component.text = CodeNotesUi.htmlBadge("$icon $title", "$type / $priority / $status", location)
             }
-            component.border = EmptyBorder(6, 8, 6, 8)
+            CodeNotesUi.tuneListLabel(component, isSelected, CodeNotesIcons.Notes)
             return component
         }
     }
