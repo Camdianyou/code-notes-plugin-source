@@ -26,6 +26,15 @@ class NoteEntity {
     var lineEnd: Int = -1
     var textHash: String = ""          // hash of the anchored text snippet, for drift detection
     var scope: String = NoteScope.FILE.name // see NoteScope
+    var anchorType: String = NoteAnchor.LINE.name
+
+    // Symbol anchor, used when notes are pinned to Java/Kotlin symbols.
+    var symbolLanguage: String = ""
+    var symbolKind: String = ""
+    var symbolQualifiedName: String = ""
+    var symbolSignature: String = ""
+    var fallbackLine: Int = -1
+    var fallbackTextHash: String = ""
 
     // Content
     var type: String = NoteType.COMMENT.name
@@ -34,6 +43,10 @@ class NoteEntity {
     var description: String = ""       // markdown body
     var tags: String = ""              // comma separated
     var relatedElements: String = ""   // comma separated FQNs
+    var folderId: String = ""
+    var favorite: Boolean = false
+    var orderIndex: Int = 0
+    var attachments: MutableList<AttachmentEntity> = mutableListOf()
 
     // TODO-specific (only meaningful when type == TODO)
     var priority: String = TodoPriority.MEDIUM.name
@@ -49,3 +62,31 @@ class NoteEntity {
 }
 
 enum class NoteScope { PROJECT, MODULE, PACKAGE, FOLDER, FILE, CLASS, METHOD, FIELD, SELECTION, LINE }
+
+enum class NoteAnchor { LINE, SELECTION, SYMBOL, FILE, PROJECT }
+
+class SymbolAnchor {
+    var language: String = ""
+    var symbolKind: String = ""
+    var qualifiedName: String = ""
+    var signature: String = ""
+    var filePath: String = ""
+    var fallbackLine: Int = -1
+    var fallbackHash: String = ""
+}
+
+class AttachmentEntity {
+    var id: String = UUID.randomUUID().toString()
+    var fileName: String = ""
+    var relativePath: String = ""
+    var contentType: String = ""
+    var sizeBytes: Long = 0
+    var createdAt: Long = System.currentTimeMillis()
+}
+
+class NoteFolder {
+    var id: String = UUID.randomUUID().toString()
+    var name: String = ""
+    var parentId: String = ""
+    var orderIndex: Int = 0
+}

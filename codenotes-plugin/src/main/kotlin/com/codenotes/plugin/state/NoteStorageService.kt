@@ -1,6 +1,7 @@
 package com.codenotes.plugin.state
 
 import com.codenotes.plugin.model.NoteEntity
+import com.codenotes.plugin.model.NoteFolder
 import com.intellij.openapi.components.*
 import com.intellij.openapi.project.Project
 import com.intellij.util.xmlb.XmlSerializerUtil
@@ -13,6 +14,9 @@ import com.intellij.util.xmlb.annotations.XCollection
 class NoteStorageState {
     @XCollection(style = XCollection.Style.v2)
     var notes: MutableList<NoteEntity> = mutableListOf()
+
+    @XCollection(style = XCollection.Style.v2)
+    var folders: MutableList<NoteFolder> = mutableListOf()
 }
 
 /**
@@ -41,6 +45,17 @@ class NoteStorageService : PersistentStateComponent<NoteStorageState> {
     }
 
     fun getAllNotes(): List<NoteEntity> = state.notes.toList()
+
+    fun replaceAll(notes: List<NoteEntity>, folders: List<NoteFolder> = state.folders) {
+        state.notes = notes.toMutableList()
+        state.folders = folders.toMutableList()
+    }
+
+    fun getFolders(): List<NoteFolder> = state.folders.toList()
+
+    fun addFolder(folder: NoteFolder) {
+        state.folders.add(folder)
+    }
 
     fun getNotesForFile(projectRelativePath: String): List<NoteEntity> =
         state.notes.filter { it.filePath == projectRelativePath }

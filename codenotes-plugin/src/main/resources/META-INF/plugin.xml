@@ -28,6 +28,7 @@
                     factoryClass="com.codenotes.plugin.toolwindow.CodeNotesToolWindowFactory"/>
 
         <projectService serviceImplementation="com.codenotes.plugin.state.NoteStorageService"/>
+        <projectService serviceImplementation="com.codenotes.plugin.repository.NoteRepository"/>
         <applicationService serviceImplementation="com.codenotes.plugin.settings.CodeNotesSettingsState"/>
 
         <applicationConfigurable
@@ -45,7 +46,13 @@
         <group id="CodeNotes.EditorPopupGroup" text="Code Notes" popup="true">
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
             <action id="CodeNotes.AddNote"
-                    class="com.codenotes.plugin.actions.AddNoteAction"/>
+                    class="com.codenotes.plugin.actions.AddNoteAction">
+                <keyboard-shortcut keymap="$default" first-keystroke="alt M"/>
+            </action>
+            <action id="CodeNotes.AddClipboardNote"
+                    class="com.codenotes.plugin.actions.AddClipboardNoteAction">
+                <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt V"/>
+            </action>
         </group>
     </actions>
 </idea-plugin>

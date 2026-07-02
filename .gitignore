@@ -12,6 +12,7 @@
 
 # Package Files #
 *.jar
+!codenotes-plugin/gradle/wrapper/gradle-wrapper.jar
 *.war
 *.nar
 *.ear

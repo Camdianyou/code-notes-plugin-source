@@ -1,9 +1,11 @@
 package com.codenotes.plugin.actions
 
+import com.codenotes.plugin.anchor.SymbolAnchorService
 import com.codenotes.plugin.model.NoteEntity
+import com.codenotes.plugin.model.NoteAnchor
 import com.codenotes.plugin.model.NoteScope
 import com.codenotes.plugin.model.NoteType
-import com.codenotes.plugin.state.NoteStorageService
+import com.codenotes.plugin.repository.NoteRepository
 import com.codenotes.plugin.ui.NoteEditorDialog
 import com.codenotes.plugin.util.AnchorUtil
 import com.codenotes.plugin.util.CodeNotesBundle
@@ -54,15 +56,33 @@ class AddNoteAction : AnAction(
             lineStart = startLine
             lineEnd = endLine
             textHash = AnchorUtil.hashOf(anchorText)
+            fallbackLine = startLine
+            fallbackTextHash = textHash
             scope = if (hasSelection) NoteScope.SELECTION.name else NoteScope.LINE.name
+            anchorType = if (hasSelection) NoteAnchor.SELECTION.name else NoteAnchor.LINE.name
             type = NoteType.COMMENT.name
             author = System.getProperty("user.name") ?: ""
+        }
+        SymbolAnchorService.createAnchor(project, editor, file)?.let { anchor ->
+            note.anchorType = NoteAnchor.SYMBOL.name
+            note.scope = when (anchor.symbolKind) {
+                "CLASS" -> NoteScope.CLASS.name
+                "METHOD" -> NoteScope.METHOD.name
+                "FIELD" -> NoteScope.FIELD.name
+                else -> note.scope
+            }
+            note.symbolLanguage = anchor.language
+            note.symbolKind = anchor.symbolKind
+            note.symbolQualifiedName = anchor.qualifiedName
+            note.symbolSignature = anchor.signature
+            note.fallbackLine = anchor.fallbackLine
+            note.fallbackTextHash = anchor.fallbackHash
         }
 
         val dialog = NoteEditorDialog(project, null)
         if (dialog.showAndGet()) {
             dialog.applyTo(note)
-            NoteStorageService.getInstance(project).addNote(note)
+            NoteRepository.getInstance(project).add(note)
             NotificationGroupManager.getInstance()
                 .getNotificationGroup("CodeNotes.Notifications")
                 .createNotification(CodeNotesBundle.message("notification.noteAdded"), NotificationType.INFORMATION)

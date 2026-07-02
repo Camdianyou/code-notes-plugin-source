@@ -1,135 +1,421 @@
 package com.codenotes.plugin.toolwindow
 
+import com.codenotes.plugin.attachments.AttachmentService
+import com.codenotes.plugin.anchor.SymbolAnchorService
+import com.codenotes.plugin.events.NoteChangeBus
+import com.codenotes.plugin.events.NoteChangeEvent
+import com.codenotes.plugin.events.NoteChangeListener
+import com.codenotes.plugin.io.NoteBackupService
+import com.codenotes.plugin.model.NoteAnchor
 import com.codenotes.plugin.model.NoteEntity
-import com.codenotes.plugin.state.NoteStorageService
-import com.codenotes.plugin.ui.NoteEditorDialog
+import com.codenotes.plugin.model.NoteQuery
+import com.codenotes.plugin.model.NoteScope
+import com.codenotes.plugin.model.NoteType
+import com.codenotes.plugin.model.SymbolAnchor
+import com.codenotes.plugin.model.TodoPriority
+import com.codenotes.plugin.model.TodoStatus
+import com.codenotes.plugin.repository.NoteRepository
 import com.codenotes.plugin.util.AnchorUtil
 import com.codenotes.plugin.util.CodeNotesBundle
-import com.intellij.notification.NotificationGroupManager
-import com.intellij.notification.NotificationType
-import com.intellij.openapi.actionSystem.ActionManager
-import com.intellij.openapi.actionSystem.ActionPlaces
-import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.codenotes.plugin.util.MarkdownPreview
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.ui.SearchTextField
+import com.intellij.ui.components.JBCheckBox
+import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
-import com.intellij.ui.table.JBTable
+import com.intellij.ui.components.JBTextArea
+import com.intellij.ui.components.JBTextField
 import java.awt.BorderLayout
-import java.awt.event.MouseAdapter
-import java.awt.event.MouseEvent
-import javax.swing.JComponent
+import java.awt.Component
+import java.awt.Dimension
+import java.awt.GridLayout
+import java.text.SimpleDateFormat
+import java.util.Date
+import javax.swing.DefaultListCellRenderer
+import javax.swing.DefaultListModel
+import javax.swing.JButton
+import javax.swing.JComboBox
+import javax.swing.JEditorPane
+import javax.swing.JFileChooser
+import javax.swing.JLabel
+import javax.swing.JList
 import javax.swing.JPanel
+import javax.swing.JSplitPane
+import javax.swing.JTabbedPane
 import javax.swing.ListSelectionModel
 import javax.swing.SwingUtilities
+import javax.swing.event.DocumentEvent
 
-class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()) {
+class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Disposable {
 
-    private val tableModel = NotesTableModel()
-    private val table = JBTable(tableModel)
+    private val repository = NoteRepository.getInstance(project)
     private val searchField = SearchTextField()
+    private val filterModel = DefaultListModel<FilterItem>()
+    private val filterList = JBList(filterModel)
+    private val noteModel = DefaultListModel<NoteEntity>()
+    private val noteList = JBList(noteModel)
+
+    private val typeCombo = JComboBox(NoteType.entries.toTypedArray())
+    private val titleField = JBTextField()
+    private val summaryField = JBTextField()
+    private val descriptionArea = JBTextArea()
+    private val tagsField = JBTextField()
+    private val priorityCombo = JComboBox(TodoPriority.entries.toTypedArray())
+    private val statusCombo = JComboBox(TodoStatus.entries.toTypedArray())
+    private val dueDateField = JBTextField()
+    private val favoriteBox = JBCheckBox("Favorite")
+    private val anchorLabel = JLabel("")
+    private val updatedLabel = JLabel("")
+    private val previewPane = JEditorPane("text/html", "")
+    private val attachmentModel = DefaultListModel<String>()
+    private val attachmentList = JBList(attachmentModel)
+
+    private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm")
+    private var selectedFilter = FilterItem.all()
+    private var loading = false
 
     init {
+        project.messageBus.connect(this).subscribe(NoteChangeBus.TOPIC, object : NoteChangeListener {
+            override fun notesChanged(event: NoteChangeEvent) = refreshAll(keepSelection = true)
+        })
+
         searchField.textEditor.emptyText.text = CodeNotesBundle.message("panel.search.placeholder")
         searchField.addDocumentListener(object : com.intellij.ui.DocumentAdapter() {
-            override fun textChanged(e: javax.swing.event.DocumentEvent) = refresh()
+            override fun textChanged(e: DocumentEvent) = refreshNotes(keepSelection = true)
         })
 
-        table.selectionModel.selectionMode = ListSelectionModel.SINGLE_SELECTION
-        table.setShowGrid(false)
-        table.addMouseListener(object : MouseAdapter() {
-            override fun mouseClicked(e: MouseEvent) {
+        filterList.selectionMode = ListSelectionModel.SINGLE_SELECTION
+        filterList.cellRenderer = FilterRenderer()
+        filterList.addListSelectionListener {
+            if (!it.valueIsAdjusting) {
+                selectedFilter = filterList.selectedValue ?: FilterItem.all()
+                refreshNotes(keepSelection = false)
+            }
+        }
+
+        noteList.selectionMode = ListSelectionModel.SINGLE_SELECTION
+        noteList.cellRenderer = NoteRenderer()
+        noteList.addListSelectionListener {
+            if (!it.valueIsAdjusting) loadSelectedNote()
+        }
+        noteList.addMouseListener(object : java.awt.event.MouseAdapter() {
+            override fun mouseClicked(e: java.awt.event.MouseEvent) {
                 if (e.clickCount == 2) navigateToSelected()
             }
-            override fun mousePressed(e: MouseEvent) = maybeShowPopup(e)
-            override fun mouseReleased(e: MouseEvent) = maybeShowPopup(e)
         })
 
-        val top = JPanel(BorderLayout())
-        top.add(searchField, BorderLayout.CENTER)
+        descriptionArea.lineWrap = true
+        descriptionArea.wrapStyleWord = true
+        previewPane.isEditable = false
 
-        add(top, BorderLayout.NORTH)
-        add(JBScrollPane(table), BorderLayout.CENTER)
-
-        refresh()
+        add(toolbar(), BorderLayout.NORTH)
+        add(workspace(), BorderLayout.CENTER)
+        refreshAll(keepSelection = false)
     }
 
-    fun refresh() {
-        val all = NoteStorageService.getInstance(project).getAllNotes()
-        val query = searchField.text.trim().lowercase()
-        tableModel.notes = if (query.isEmpty()) {
-            all.sortedByDescending { it.updatedAt }
-        } else {
-            all.filter {
-                it.title.lowercase().contains(query) ||
-                    it.summary.lowercase().contains(query) ||
-                    it.description.lowercase().contains(query) ||
-                    it.tags.lowercase().contains(query) ||
-                    it.filePath.lowercase().contains(query)
-            }.sortedByDescending { it.updatedAt }
+    private fun toolbar(): JPanel {
+        val panel = JPanel(BorderLayout(8, 0))
+        val buttons = JPanel()
+        buttons.add(JButton("New").apply { addActionListener { createProjectNote() } })
+        buttons.add(JButton("Save").apply { addActionListener { saveSelectedNote() } })
+        buttons.add(JButton("Delete").apply { addActionListener { deleteSelectedNote() } })
+        buttons.add(JButton("Open").apply { addActionListener { navigateToSelected() } })
+        buttons.add(JButton("Export").apply { addActionListener { exportNotes() } })
+        buttons.add(JButton("Import").apply { addActionListener { importNotes() } })
+        panel.add(searchField, BorderLayout.CENTER)
+        panel.add(buttons, BorderLayout.EAST)
+        return panel
+    }
+
+    private fun workspace(): JSplitPane {
+        val left = JPanel(BorderLayout())
+        left.preferredSize = Dimension(170, 300)
+        left.add(JBScrollPane(filterList), BorderLayout.CENTER)
+
+        val middle = JPanel(BorderLayout())
+        middle.preferredSize = Dimension(280, 300)
+        middle.add(JBScrollPane(noteList), BorderLayout.CENTER)
+
+        val right = detailPanel()
+        val first = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, left, middle)
+        first.resizeWeight = 0.25
+        val root = JSplitPane(JSplitPane.HORIZONTAL_SPLIT, first, right)
+        root.resizeWeight = 0.45
+        return root
+    }
+
+    private fun detailPanel(): JPanel {
+        val fields = JPanel(GridLayout(0, 2, 6, 6))
+        fields.add(JLabel(CodeNotesBundle.message("dialog.field.type")))
+        fields.add(typeCombo)
+        fields.add(JLabel(CodeNotesBundle.message("dialog.field.title")))
+        fields.add(titleField)
+        fields.add(JLabel(CodeNotesBundle.message("dialog.field.summary")))
+        fields.add(summaryField)
+        fields.add(JLabel(CodeNotesBundle.message("dialog.field.tags")))
+        fields.add(tagsField)
+        fields.add(JLabel(CodeNotesBundle.message("dialog.field.priority")))
+        fields.add(priorityCombo)
+        fields.add(JLabel(CodeNotesBundle.message("dialog.field.status")))
+        fields.add(statusCombo)
+        fields.add(JLabel(CodeNotesBundle.message("dialog.field.dueDate")))
+        fields.add(dueDateField)
+        fields.add(JLabel("Flags"))
+        fields.add(favoriteBox)
+        fields.add(JLabel("Anchor"))
+        fields.add(anchorLabel)
+        fields.add(JLabel("Updated"))
+        fields.add(updatedLabel)
+
+        val tabs = JTabbedPane()
+        tabs.addTab("Markdown", JBScrollPane(descriptionArea))
+        tabs.addTab("Preview", JBScrollPane(previewPane))
+        tabs.addChangeListener {
+            if (tabs.selectedIndex == 1) {
+                previewPane.text = MarkdownPreview.toHtml(descriptionArea.text)
+            }
+        }
+
+        val panel = JPanel(BorderLayout(0, 8))
+        panel.add(fields, BorderLayout.NORTH)
+        panel.add(tabs, BorderLayout.CENTER)
+        panel.add(attachmentPanel(), BorderLayout.SOUTH)
+        return panel
+    }
+
+    private fun attachmentPanel(): JPanel {
+        val buttons = JPanel()
+        buttons.add(JButton("Add attachment").apply { addActionListener { addAttachment() } })
+        buttons.add(JButton("Open").apply { addActionListener { openAttachment() } })
+        buttons.add(JButton("Remove").apply { addActionListener { removeAttachment() } })
+        val panel = JPanel(BorderLayout())
+        panel.preferredSize = Dimension(100, 120)
+        panel.add(JLabel("Attachments"), BorderLayout.NORTH)
+        panel.add(JBScrollPane(attachmentList), BorderLayout.CENTER)
+        panel.add(buttons, BorderLayout.SOUTH)
+        return panel
+    }
+
+    private fun refreshAll(keepSelection: Boolean) {
+        refreshFilters()
+        refreshNotes(keepSelection)
+    }
+
+    private fun refreshFilters() {
+        val previous = selectedFilter.key
+        filterModel.clear()
+        val notes = repository.allNotes()
+        filterModel.addElement(FilterItem.all())
+        filterModel.addElement(FilterItem("favorite", "Favorites", favoritesOnly = true))
+        TodoStatus.entries.forEach { status ->
+            filterModel.addElement(FilterItem("status:${status.name}", status.name, statuses = setOf(status.name)))
+        }
+        notes.flatMap { it.tags.split(',') }
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sorted()
+            .forEach { tag -> filterModel.addElement(FilterItem("tag:$tag", "#$tag", tags = setOf(tag))) }
+
+        val index = (0 until filterModel.size()).firstOrNull { filterModel[it].key == previous } ?: 0
+        filterList.selectedIndex = index
+        selectedFilter = filterModel[index]
+    }
+
+    private fun refreshNotes(keepSelection: Boolean) {
+        val selectedId = if (keepSelection) noteList.selectedValue?.id else null
+        val query = NoteQuery(
+            text = searchField.text.trim(),
+            tags = selectedFilter.tags,
+            statuses = selectedFilter.statuses,
+            favoritesOnly = selectedFilter.favoritesOnly
+        )
+        noteModel.clear()
+        repository.query(query).forEach { noteModel.addElement(it) }
+        val selectedIndex = selectedId?.let { id ->
+            (0 until noteModel.size()).firstOrNull { noteModel[it].id == id }
+        } ?: 0
+        if (noteModel.size() > 0) noteList.selectedIndex = selectedIndex.coerceIn(0, noteModel.size() - 1)
+    }
+
+    private fun loadSelectedNote() {
+        val note = noteList.selectedValue ?: return
+        loading = true
+        typeCombo.selectedItem = NoteType.safeValueOf(note.type)
+        titleField.text = note.title
+        summaryField.text = note.summary
+        descriptionArea.text = note.description
+        tagsField.text = note.tags
+        priorityCombo.selectedItem = runCatching { TodoPriority.valueOf(note.priority) }.getOrDefault(TodoPriority.MEDIUM)
+        statusCombo.selectedItem = runCatching { TodoStatus.valueOf(note.status) }.getOrDefault(TodoStatus.TODO)
+        dueDateField.text = note.dueDate
+        favoriteBox.isSelected = note.favorite
+        anchorLabel.text = when (note.anchorType) {
+            NoteAnchor.SYMBOL.name -> "${note.symbolLanguage} ${note.symbolKind} ${note.symbolQualifiedName}"
+            NoteAnchor.PROJECT.name -> "Project"
+            else -> "${note.filePath}:${note.lineStart + 1}"
+        }
+        updatedLabel.text = dateFormat.format(Date(note.updatedAt))
+        previewPane.text = MarkdownPreview.toHtml(note.description)
+        attachmentModel.clear()
+        note.attachments.forEach { attachment ->
+            attachmentModel.addElement("${attachment.fileName} (${attachment.sizeBytes} bytes)")
+        }
+        loading = false
+    }
+
+    private fun createProjectNote() {
+        val note = NoteEntity().apply {
+            anchorType = NoteAnchor.PROJECT.name
+            scope = NoteScope.PROJECT.name
+            title = "Untitled note"
+            type = NoteType.COMMENT.name
+            author = System.getProperty("user.name") ?: ""
+        }
+        repository.add(note)
+        refreshAll(keepSelection = true)
+        noteList.selectedIndex = (0 until noteModel.size()).firstOrNull { noteModel[it].id == note.id } ?: 0
+    }
+
+    private fun saveSelectedNote() {
+        if (loading) return
+        val note = noteList.selectedValue ?: return
+        note.type = (typeCombo.selectedItem as NoteType).name
+        note.title = titleField.text.trim()
+        note.summary = summaryField.text.trim()
+        note.description = descriptionArea.text
+        note.tags = tagsField.text.trim()
+        note.priority = (priorityCombo.selectedItem as TodoPriority).name
+        note.status = (statusCombo.selectedItem as TodoStatus).name
+        note.dueDate = dueDateField.text.trim()
+        note.favorite = favoriteBox.isSelected
+        repository.update(note)
+        previewPane.text = MarkdownPreview.toHtml(note.description)
+    }
+
+    private fun addAttachment() {
+        val note = noteList.selectedValue ?: return
+        val chooser = JFileChooser()
+        chooser.isMultiSelectionEnabled = true
+        if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            chooser.selectedFiles.mapNotNull { AttachmentService.addAttachment(project, it) }
+                .forEach { note.attachments.add(it) }
+            repository.update(note)
+            loadSelectedNote()
         }
     }
 
-    private fun maybeShowPopup(e: MouseEvent) {
-        if (!e.isPopupTrigger) return
-        val row = table.rowAtPoint(e.point)
-        if (row < 0) return
-        table.setRowSelectionInterval(row, row)
-        val note = tableModel.noteAt(row) ?: return
-
-        val group = DefaultActionGroup()
-        group.add(object : com.intellij.openapi.actionSystem.AnAction(CodeNotesBundle.message("action.editNote.text")) {
-            override fun actionPerformed(ev: com.intellij.openapi.actionSystem.AnActionEvent) = editNote(note)
-        })
-        group.add(object : com.intellij.openapi.actionSystem.AnAction(CodeNotesBundle.message("action.deleteNote.text")) {
-            override fun actionPerformed(ev: com.intellij.openapi.actionSystem.AnActionEvent) = deleteNote(note)
-        })
-
-        val popupMenu = ActionManager.getInstance().createActionPopupMenu(ActionPlaces.TOOLWINDOW_POPUP, group)
-        popupMenu.component.show(e.component, e.x, e.y)
+    private fun openAttachment() {
+        val note = noteList.selectedValue ?: return
+        val attachment = note.attachments.getOrNull(attachmentList.selectedIndex) ?: return
+        AttachmentService.open(project, attachment)
     }
 
-    private fun editNote(note: NoteEntity) {
-        val dialog = NoteEditorDialog(project, note)
-        if (dialog.showAndGet()) {
-            dialog.applyTo(note)
-            NoteStorageService.getInstance(project).updateNote(note)
-            NotificationGroupManager.getInstance()
-                .getNotificationGroup("CodeNotes.Notifications")
-                .createNotification(CodeNotesBundle.message("notification.noteUpdated"), NotificationType.INFORMATION)
-                .notify(project)
-            refresh()
+    private fun removeAttachment() {
+        val note = noteList.selectedValue ?: return
+        val index = attachmentList.selectedIndex
+        val attachment = note.attachments.getOrNull(index) ?: return
+        AttachmentService.delete(project, attachment)
+        note.attachments.removeAt(index)
+        repository.update(note)
+        loadSelectedNote()
+    }
+
+    private fun exportNotes() {
+        val chooser = JFileChooser()
+        chooser.selectedFile = java.io.File("codeNotes-backup.xml")
+        if (chooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            NoteBackupService.exportTo(project, chooser.selectedFile)
         }
     }
 
-    private fun deleteNote(note: NoteEntity) {
-        NoteStorageService.getInstance(project).deleteNote(note.id)
-        NotificationGroupManager.getInstance()
-            .getNotificationGroup("CodeNotes.Notifications")
-            .createNotification(CodeNotesBundle.message("notification.noteDeleted"), NotificationType.INFORMATION)
-            .notify(project)
-        refresh()
+    private fun importNotes() {
+        val chooser = JFileChooser()
+        if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            val state = NoteBackupService.importFrom(chooser.selectedFile)
+            repository.replaceAll(state.notes, state.folders)
+        }
+    }
+
+    private fun deleteSelectedNote() {
+        val note = noteList.selectedValue ?: return
+        repository.delete(note.id)
     }
 
     private fun navigateToSelected() {
-        val row = table.selectedRow
-        val note = tableModel.noteAt(row) ?: return
+        val note = noteList.selectedValue ?: return
         if (note.filePath.isBlank()) return
 
         val basePath = project.basePath ?: return
         val vFile = LocalFileSystem.getInstance().findFileByPath("$basePath/${note.filePath}") ?: return
-
-        var line = note.lineStart.coerceAtLeast(0)
-        // Open the file first so we have a live Document to relocate the anchor against.
         FileEditorManager.getInstance(project).openFile(vFile, true)
         val editor = FileEditorManager.getInstance(project).selectedTextEditor
-        if (editor != null) {
-            line = AnchorUtil.relocateLine(editor.document, note.lineStart, note.textHash)
-        }
+        val line = (if (note.anchorType == NoteAnchor.SYMBOL.name) {
+            SymbolAnchorService.resolve(project, SymbolAnchor().apply {
+                language = note.symbolLanguage
+                symbolKind = note.symbolKind
+                qualifiedName = note.symbolQualifiedName
+                signature = note.symbolSignature
+                filePath = note.filePath
+                fallbackLine = note.fallbackLine
+                fallbackHash = note.fallbackTextHash
+            })
+        } else null) ?: editor?.let { AnchorUtil.relocateLineRange(it.document, note.lineStart, note.lineEnd, note.textHash) }
+            ?: note.lineStart.coerceAtLeast(0)
 
         val descriptor = OpenFileDescriptor(project, vFile, line, 0)
         SwingUtilities.invokeLater { descriptor.navigate(true) }
+    }
+
+    private data class FilterItem(
+        val key: String,
+        val label: String,
+        val tags: Set<String> = emptySet(),
+        val statuses: Set<String> = emptySet(),
+        val favoritesOnly: Boolean = false
+    ) {
+        companion object {
+            fun all() = FilterItem("all", "All Notes")
+        }
+    }
+
+    private class FilterRenderer : DefaultListCellRenderer() {
+        override fun getListCellRendererComponent(
+            list: JList<*>?,
+            value: Any?,
+            index: Int,
+            isSelected: Boolean,
+            cellHasFocus: Boolean
+        ): Component {
+            val component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus) as JLabel
+            component.text = (value as? FilterItem)?.label ?: ""
+            return component
+        }
+    }
+
+    private class NoteRenderer : DefaultListCellRenderer() {
+        override fun getListCellRendererComponent(
+            list: JList<*>?,
+            value: Any?,
+            index: Int,
+            isSelected: Boolean,
+            cellHasFocus: Boolean
+        ): Component {
+            val component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus) as JLabel
+            val note = value as? NoteEntity
+            if (note != null) {
+                val title = note.title.ifBlank { "(untitled)" }
+                val location = if (note.symbolQualifiedName.isNotBlank()) note.symbolQualifiedName else note.filePath
+                component.text = "${NoteType.safeValueOf(note.type).icon} $title  ·  $location"
+            }
+            return component
+        }
+    }
+
+    override fun dispose() {
     }
 }
