@@ -13,6 +13,7 @@ object CodeNotesIcons {
     val Notes = IconLoader.getIcon("/icons/notes.svg", CodeNotesIcons::class.java)
     val Reviews = IconLoader.getIcon("/icons/reviews.svg", CodeNotesIcons::class.java)
     val Save = IconLoader.getIcon("/icons/save.svg", CodeNotesIcons::class.java)
+    val Refresh = IconLoader.getIcon("/icons/refresh.svg", CodeNotesIcons::class.java)
     val Delete = IconLoader.getIcon("/icons/delete.svg", CodeNotesIcons::class.java)
     val Open = IconLoader.getIcon("/icons/open.svg", CodeNotesIcons::class.java)
     val Export = IconLoader.getIcon("/icons/export.svg", CodeNotesIcons::class.java)

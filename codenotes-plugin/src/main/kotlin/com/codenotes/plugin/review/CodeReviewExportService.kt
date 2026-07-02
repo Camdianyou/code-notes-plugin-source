@@ -49,9 +49,16 @@ object CodeReviewExportService {
             sheet.setMergedCellValue(9, 2, review.copyTo)
 
             val contentLines = buildList {
-                add("\u8D70\u67E5\u8303\u56F4\uFF1A${review.scope.ifBlank { "\u672A\u586B\u5199" }}")
+                add("\u4E00\u3001\u8D70\u67E5\u8303\u56F4")
+                val scopeLines = review.scopeLines()
+                if (scopeLines.isEmpty()) {
+                    add("1. \u672A\u586B\u5199")
+                } else {
+                    scopeLines.forEachIndexed { index, scope ->
+                        add("${index + 1}. $scope")
+                    }
+                }
                 add("\u95EE\u9898\u6982\u89C8\uFF1A\u5171 ${issues.size} \u4E2A\u95EE\u9898\uFF0C\u5F85\u8DDF\u8FDB ${issues.count { !it.isClosed() }} \u4E2A\u3002")
-                if (review.conclusion.isNotBlank()) add("\u8D70\u67E5\u7ED3\u8BBA\uFF1A${review.conclusion}")
             }.map { ExportLine(it) }
             sheet.writeMergedLines(11, 6, 17, contentLines)
 
@@ -75,7 +82,6 @@ object CodeReviewExportService {
                 if (detachedIssues.isNotEmpty()) {
                     add("\u672A\u5173\u8054\u4EE3\u7801\u7684\u95EE\u9898\uFF1A${detachedIssues.joinToString("\uFF1B") { it.title.ifBlank { it.id } }}")
                 }
-                add("\u62A5\u544A\u7531 Code Notes \u63D2\u4EF6\u6839\u636E\u4EE3\u7801\u8D70\u67E5\u8BB0\u5F55\u5BFC\u51FA\u3002")
             }.map { ExportLine(it) }
             sheet.writeMergedLines(24, 5, 29, otherLines)
 
@@ -101,8 +107,13 @@ object CodeReviewExportService {
     }
 
     private fun CodeReviewEntity.notesLines(): List<String> =
-        notes
-            .split(Regex("\\r?\\n"))
+        notes.splitCleanLines()
+
+    private fun CodeReviewEntity.scopeLines(): List<String> =
+        scope.splitCleanLines()
+
+    private fun String.splitCleanLines(): List<String> =
+        this.split(Regex("\\r?\\n"))
             .map { it.trim() }
             .filter { it.isNotBlank() }
 

@@ -102,7 +102,7 @@ class CodeReviewFeatureTest {
             recorder = "\u674E\u56DB"
             attendees = "\u5F20\u4E09\u3001\u674E\u56DB"
             topic = "\u652F\u4ED8\u6A21\u5757\u8D70\u67E5"
-            scope = "\u652F\u4ED8\u4E0B\u5355\u4E0E\u56DE\u8C03"
+            scope = "\u652F\u4ED8\u4E0B\u5355\u6D41\u7A0B\n\n\u56DE\u8C03\u9A8C\u7B7E\u903B\u8F91"
             conclusion = "\u9700\u8981\u4FEE\u590D\u9AD8\u4F18\u95EE\u9898"
             notes = "\u6CE8\u610F\u4E00\uFF1A\u5148\u5408\u5E76\u9AD8\u98CE\u9669\u4FEE\u590D\n\n\u6CE8\u610F\u4E8C\uFF1A\u56DE\u5F52\u8986\u76D6\u8FB9\u754C\u573A\u666F"
         }
@@ -149,7 +149,10 @@ class CodeReviewFeatureTest {
             val sheet = workbook.getSheetAt(0)
             assertEquals("\u652F\u4ED8\u6A21\u5757\u4EE3\u7801\u8D70\u67E5", sheet.getRow(1).getCell(1).stringCellValue)
             assertEquals("2026-07-02", sheet.getRow(2).getCell(1).stringCellValue)
-            assertTrue(sheet.getRow(10).getCell(0).stringCellValue.contains("\u652F\u4ED8\u4E0B\u5355\u4E0E\u56DE\u8C03"))
+            assertEquals("\u4E00\u3001\u8D70\u67E5\u8303\u56F4", sheet.getRow(10).getCell(0).stringCellValue)
+            assertEquals("1. \u652F\u4ED8\u4E0B\u5355\u6D41\u7A0B", sheet.getRow(11).getCell(0).stringCellValue)
+            assertEquals("2. \u56DE\u8C03\u9A8C\u7B7E\u903B\u8F91", sheet.getRow(12).getCell(0).stringCellValue)
+            assertFalse(sheet.getRow(13).getCell(0).stringCellValue.contains("\u8D70\u67E5\u7ED3\u8BBA"))
 
             val highCell = sheet.getRow(17).getCell(0)
             val highLine = highCell.stringCellValue
@@ -180,6 +183,7 @@ class CodeReviewFeatureTest {
             assertTrue(noteLineOne.contains("\u5176\u4ED6\u6CE8\u610F\u4E8B\u9879 1\uFF1A\u6CE8\u610F\u4E00"))
             assertTrue(noteLineTwo.contains("\u5176\u4ED6\u6CE8\u610F\u4E8B\u9879 2\uFF1A\u6CE8\u610F\u4E8C"))
             assertFalse(noteLineOne.contains("\u8865\u5145\u8BF4\u660E"))
+            assertFalse(noteLineTwo.contains("\u62A5\u544A\u7531 Code Notes"))
 
             assertEquals(IndexedColors.RED.index, workbook.getFontAt(highCell.cellStyle.fontIndexAsInt).color)
             assertEquals(IndexedColors.DARK_YELLOW.index, workbook.getFontAt(mediumCell.cellStyle.fontIndexAsInt).color)

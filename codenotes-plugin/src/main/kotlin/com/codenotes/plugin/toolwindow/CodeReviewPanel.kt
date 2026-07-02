@@ -51,7 +51,10 @@ import javax.swing.JSplitPane
 import javax.swing.JTabbedPane
 import javax.swing.ListSelectionModel
 import javax.swing.SwingUtilities
+import javax.swing.Timer
 import javax.swing.border.EmptyBorder
+import javax.swing.event.DocumentEvent
+import javax.swing.text.JTextComponent
 
 class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Disposable {
 
@@ -74,7 +77,6 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
     private val sendToField = JBTextField()
     private val copyToField = JBTextField()
     private val scopeArea = JBTextArea()
-    private val conclusionArea = JBTextArea()
     private val notesArea = JBTextArea()
     private val reviewStatusCombo = JComboBox(CodeReviewStatus.entries.toTypedArray())
 
@@ -93,6 +95,10 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
     private val linkedNoteLabel = JLabel("")
 
     private var loading = false
+    private var editingReviewId: String? = null
+    private var editingIssueId: String? = null
+    private val reviewAutoSaveTimer = Timer(500) { saveSelectedReview() }.apply { isRepeats = false }
+    private val issueAutoSaveTimer = Timer(500) { saveSelectedIssue() }.apply { isRepeats = false }
 
     init {
         project.messageBus.connect(this).subscribe(CodeReviewChangeBus.TOPIC, object : CodeReviewChangeListener {
@@ -104,6 +110,8 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
         reviewList.emptyText.text = CodeNotesBundle.message("review.empty.reviews")
         reviewList.addListSelectionListener {
             if (!it.valueIsAdjusting) {
+                flushReviewAutoSave()
+                flushIssueAutoSave()
                 loadSelectedReview()
                 refreshIssues(keepSelection = false)
             }
@@ -113,7 +121,10 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
         issueList.cellRenderer = IssueRenderer()
         issueList.emptyText.text = CodeNotesBundle.message("review.empty.issues")
         issueList.addListSelectionListener {
-            if (!it.valueIsAdjusting) loadSelectedIssue()
+            if (!it.valueIsAdjusting) {
+                flushIssueAutoSave()
+                loadSelectedIssue()
+            }
         }
         issueList.addMouseListener(object : java.awt.event.MouseAdapter() {
             override fun mouseClicked(e: java.awt.event.MouseEvent) {
@@ -121,7 +132,7 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
             }
         })
 
-        listOf(scopeArea, conclusionArea, notesArea, issueDescriptionArea, suggestionArea, resolutionArea).forEach {
+        listOf(scopeArea, notesArea, issueDescriptionArea, suggestionArea, resolutionArea).forEach {
             it.lineWrap = true
             it.wrapStyleWord = true
         }
@@ -129,6 +140,7 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
         issueTypeCombo.renderer = localizedRenderer<NoteType> { LocalizedEnumLabels.noteType(it) }
         severityCombo.renderer = localizedRenderer<TodoPriority> { LocalizedEnumLabels.priority(it) }
         issueStatusCombo.renderer = localizedRenderer<TodoStatus> { LocalizedEnumLabels.status(it) }
+        installAutoSaveListeners()
 
         add(toolbar(), BorderLayout.NORTH)
         add(workspace(), BorderLayout.CENTER)
@@ -141,8 +153,7 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
         buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("review.action.newIssue"), CodeNotesIcons.ReviewIssue, primary = true) { createIssue() })
         buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("review.action.export"), CodeNotesIcons.Export, primary = true) { exportSelectedReview() })
         buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("review.action.addNote"), CodeNotesIcons.AddNote) { addNoteIssue() })
-        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("review.action.saveReview"), CodeNotesIcons.Save) { saveSelectedReview() })
-        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("review.action.saveIssue"), CodeNotesIcons.Save) { saveSelectedIssue() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("review.action.refresh"), CodeNotesIcons.Refresh) { refreshAndClear() })
         buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("review.action.deleteReview"), CodeNotesIcons.Delete) { deleteSelectedReview() })
         buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("review.action.deleteIssue"), CodeNotesIcons.Delete) { deleteSelectedIssue() })
 
@@ -192,7 +203,6 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
 
         val textTabs = JTabbedPane()
         textTabs.addTab(CodeNotesBundle.message("review.field.scope"), CodeNotesIcons.Filter, JBScrollPane(scopeArea))
-        textTabs.addTab(CodeNotesBundle.message("review.field.conclusion"), CodeNotesIcons.Status, JBScrollPane(conclusionArea))
         textTabs.addTab(CodeNotesBundle.message("review.field.notes"), CodeNotesIcons.Info, JBScrollPane(notesArea))
 
         val panel = CodeNotesUi.detailPanel()
@@ -242,6 +252,118 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
         refreshIssues(keepSelection)
     }
 
+    private fun refreshAndClear() {
+        loading = true
+        reviewAutoSaveTimer.stop()
+        issueAutoSaveTimer.stop()
+        refreshReviews(keepSelection = false)
+        reviewList.clearSelection()
+        issueModel.clear()
+        issueList.clearSelection()
+        editingReviewId = null
+        editingIssueId = null
+        clearReviewForm()
+        clearIssueForm()
+        loading = false
+    }
+
+    private fun installAutoSaveListeners() {
+        val reviewTextListener = object : com.intellij.ui.DocumentAdapter() {
+            override fun textChanged(e: DocumentEvent) = scheduleReviewAutoSave()
+        }
+        listOf<JTextComponent>(
+            meetingNameField,
+            meetingDateField,
+            locationField,
+            startTimeField,
+            endTimeField,
+            hostField,
+            recorderField,
+            attendeesField,
+            topicField,
+            sendToField,
+            copyToField,
+            scopeArea,
+            notesArea
+        ).forEach { it.document.addDocumentListener(reviewTextListener) }
+        reviewStatusCombo.addActionListener { scheduleReviewAutoSave() }
+
+        val issueTextListener = object : com.intellij.ui.DocumentAdapter() {
+            override fun textChanged(e: DocumentEvent) = scheduleIssueAutoSave()
+        }
+        listOf<JTextComponent>(
+            issueTitleField,
+            issueDescriptionArea,
+            issueFileField,
+            issueLineField,
+            issueSymbolField,
+            ownerField,
+            dueDateField,
+            suggestionArea,
+            resolutionArea
+        ).forEach { it.document.addDocumentListener(issueTextListener) }
+        listOf(issueTypeCombo, severityCombo, issueStatusCombo).forEach { combo ->
+            combo.addActionListener { scheduleIssueAutoSave() }
+        }
+    }
+
+    private fun scheduleReviewAutoSave() {
+        if (loading || editingReviewId == null) return
+        reviewAutoSaveTimer.restart()
+    }
+
+    private fun scheduleIssueAutoSave() {
+        if (loading || editingIssueId == null) return
+        issueAutoSaveTimer.restart()
+    }
+
+    private fun flushReviewAutoSave() {
+        if (reviewAutoSaveTimer.isRunning) {
+            reviewAutoSaveTimer.stop()
+            saveSelectedReview()
+        }
+    }
+
+    private fun flushIssueAutoSave() {
+        if (issueAutoSaveTimer.isRunning) {
+            issueAutoSaveTimer.stop()
+            saveSelectedIssue()
+        }
+    }
+
+    private fun clearReviewForm() {
+        meetingNameField.text = ""
+        meetingDateField.text = ""
+        locationField.text = ""
+        startTimeField.text = ""
+        endTimeField.text = ""
+        hostField.text = ""
+        recorderField.text = ""
+        attendeesField.text = ""
+        topicField.text = ""
+        sendToField.text = ""
+        copyToField.text = ""
+        scopeArea.text = ""
+        notesArea.text = ""
+        reviewStatusCombo.selectedItem = CodeReviewStatus.OPEN
+    }
+
+    private fun clearIssueForm() {
+        issueTitleField.text = ""
+        issueDescriptionArea.text = ""
+        issueFileField.text = ""
+        issueLineField.text = ""
+        issueSymbolField.text = ""
+        issueTypeCombo.selectedItem = NoteType.REVIEW
+        severityCombo.selectedItem = TodoPriority.MEDIUM
+        issueStatusCombo.selectedItem = TodoStatus.TODO
+        ownerField.text = ""
+        dueDateField.text = ""
+        suggestionArea.text = ""
+        resolutionArea.text = ""
+        linkedNoteLabel.text = ""
+    }
+
     private fun refreshReviews(keepSelection: Boolean) {
         val selectedId = if (keepSelection) reviewList.selectedValue?.id else null
         reviewModel.clear()
@@ -268,6 +390,7 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
     private fun loadSelectedReview() {
         val review = reviewList.selectedValue ?: return
         loading = true
+        editingReviewId = review.id
         meetingNameField.text = review.meetingName
         meetingDateField.text = review.meetingDate
         locationField.text = review.location
@@ -280,7 +403,6 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
         sendToField.text = review.sendTo
         copyToField.text = review.copyTo
         scopeArea.text = review.scope
-        conclusionArea.text = review.conclusion
         notesArea.text = review.notes
         reviewStatusCombo.selectedItem = LocalizedEnumLabels.reviewStatusCode(review.status) ?: CodeReviewStatus.OPEN
         loading = false
@@ -289,6 +411,7 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
     private fun loadSelectedIssue() {
         val issue = issueList.selectedValue ?: return
         loading = true
+        editingIssueId = issue.id
         issueTitleField.text = issue.title
         issueDescriptionArea.text = issue.description
         issueFileField.text = issue.filePath
@@ -306,6 +429,8 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
     }
 
     private fun createReview() {
+        flushReviewAutoSave()
+        flushIssueAutoSave()
         val review = CodeReviewDefaults.newTodayReview()
         reviewRepository.addReview(review)
         refreshReviews(keepSelection = true)
@@ -313,7 +438,7 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
 
     private fun saveSelectedReview() {
         if (loading) return
-        val review = reviewList.selectedValue ?: return
+        val review = editingReviewId?.let { reviewRepository.findReview(it) } ?: reviewList.selectedValue ?: return
         review.meetingName = meetingNameField.text.trim()
         review.meetingDate = meetingDateField.text.trim()
         review.location = locationField.text.trim()
@@ -326,18 +451,25 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
         review.sendTo = sendToField.text.trim()
         review.copyTo = copyToField.text.trim()
         review.scope = scopeArea.text.trim()
-        review.conclusion = conclusionArea.text.trim()
         review.notes = notesArea.text.trim()
         review.status = (reviewStatusCombo.selectedItem as CodeReviewStatus).name
         reviewRepository.updateReview(review)
     }
 
     private fun deleteSelectedReview() {
+        reviewAutoSaveTimer.stop()
+        issueAutoSaveTimer.stop()
         val review = reviewList.selectedValue ?: return
         reviewRepository.deleteReview(review.id)
+        editingReviewId = null
+        editingIssueId = null
+        clearReviewForm()
+        clearIssueForm()
     }
 
     private fun createIssue() {
+        flushReviewAutoSave()
+        flushIssueAutoSave()
         val review = reviewList.selectedValue ?: return
         val issue = CodeReviewIssueEntity().apply {
             reviewId = review.id
@@ -351,6 +483,8 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
     }
 
     private fun addNoteIssue() {
+        flushReviewAutoSave()
+        flushIssueAutoSave()
         val review = reviewList.selectedValue ?: CodeReviewDefaults.getOrCreateDefaultReview(reviewRepository)
         val notes = noteRepository.allNotes()
         if (notes.isEmpty()) return
@@ -369,7 +503,7 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
 
     private fun saveSelectedIssue() {
         if (loading) return
-        val issue = issueList.selectedValue ?: return
+        val issue = editingIssueId?.let { reviewRepository.findIssue(it) } ?: issueList.selectedValue ?: return
         issue.title = issueTitleField.text.trim()
         issue.description = issueDescriptionArea.text.trim()
         issue.filePath = issueFileField.text.trim()
@@ -387,11 +521,16 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
     }
 
     private fun deleteSelectedIssue() {
+        issueAutoSaveTimer.stop()
         val issue = issueList.selectedValue ?: return
         reviewRepository.deleteIssue(issue.id)
+        editingIssueId = null
+        clearIssueForm()
     }
 
     private fun exportSelectedReview() {
+        flushReviewAutoSave()
+        flushIssueAutoSave()
         saveSelectedReview()
         saveSelectedIssue()
         val review = reviewList.selectedValue ?: CodeReviewDefaults.getOrCreateDefaultReview(reviewRepository)
@@ -505,5 +644,7 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
     }
 
     override fun dispose() {
+        reviewAutoSaveTimer.stop()
+        issueAutoSaveTimer.stop()
     }
 }
