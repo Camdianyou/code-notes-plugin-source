@@ -145,7 +145,6 @@ class CodeReviewPanel(private val project: Project) : JPanel(BorderLayout()), Di
         buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("review.action.saveIssue"), CodeNotesIcons.Save) { saveSelectedIssue() })
         buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("review.action.deleteReview"), CodeNotesIcons.Delete) { deleteSelectedReview() })
         buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("review.action.deleteIssue"), CodeNotesIcons.Delete) { deleteSelectedIssue() })
-        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("review.action.open"), CodeNotesIcons.Open) { navigateToSelectedIssue() })
 
         val panel = JPanel(BorderLayout())
         panel.border = EmptyBorder(6, 8, 6, 8)

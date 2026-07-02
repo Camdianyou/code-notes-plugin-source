@@ -134,7 +134,6 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
         buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.new"), CodeNotesIcons.AddNote, primary = true) { createProjectNote() })
         buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.save"), CodeNotesIcons.Save) { saveSelectedNote() })
         buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.delete"), CodeNotesIcons.Delete) { deleteSelectedNote() })
-        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.open"), CodeNotesIcons.Open) { navigateToSelected() })
         buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.addToReview"), CodeNotesIcons.ReviewIssue) { addSelectedNoteToReview() })
         buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.export"), CodeNotesIcons.Export) { exportNotes() })
         buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.import"), CodeNotesIcons.Import) { importNotes() })

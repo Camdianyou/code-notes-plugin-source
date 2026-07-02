@@ -12,9 +12,12 @@ import com.codenotes.plugin.model.SymbolAnchor
 import com.codenotes.plugin.repository.CodeReviewRepository
 import com.codenotes.plugin.repository.NoteRepository
 import com.codenotes.plugin.util.AnchorUtil
+import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.editor.event.EditorFactoryEvent
 import com.intellij.openapi.editor.event.EditorFactoryListener
 import com.intellij.openapi.editor.markup.HighlighterLayer
+import com.intellij.openapi.editor.markup.HighlighterTargetArea
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.Project
 
@@ -33,21 +36,31 @@ class NoteGutterEditorListener : EditorFactoryListener {
 
         project.messageBus.connect(project).subscribe(NoteChangeBus.TOPIC, object : NoteChangeListener {
             override fun notesChanged(event: NoteChangeEvent) {
-                if (event.filePath.isBlank() || event.filePath == relativePath) {
-                    repaint(editor, project, relativePath)
-                }
+                refreshOpenEditors(project, event.filePath)
             }
         })
         project.messageBus.connect(project).subscribe(CodeReviewChangeBus.TOPIC, object : CodeReviewChangeListener {
             override fun codeReviewsChanged(event: CodeReviewChangeEvent) {
-                repaint(editor, project, relativePath)
+                refreshOpenEditors(project)
             }
         })
 
         repaint(editor, project, relativePath)
     }
 
-    private fun repaint(editor: com.intellij.openapi.editor.Editor, project: Project, relativePath: String) {
+    private fun refreshOpenEditors(project: Project, changedFilePath: String = "") {
+        EditorFactory.getInstance().allEditors
+            .filter { it.project == project }
+            .forEach { editor ->
+                val file = FileDocumentManager.getInstance().getFile(editor.document) ?: return@forEach
+                val relativePath = AnchorUtil.relativePath(project, file)
+                if (changedFilePath.isBlank() || changedFilePath == relativePath) {
+                    repaint(editor, project, relativePath)
+                }
+            }
+    }
+
+    private fun repaint(editor: Editor, project: Project, relativePath: String) {
         editor.markupModel.allHighlighters
             .filter { it.gutterIconRenderer is NoteGutterIconRenderer }
             .forEach { editor.markupModel.removeHighlighter(it) }
@@ -77,8 +90,14 @@ class NoteGutterEditorListener : EditorFactoryListener {
             }
             if (line < 0 || line >= document.lineCount) continue
 
-            val highlighter = editor.markupModel.addLineHighlighter(
-                null, line, HighlighterLayer.ADDITIONAL_SYNTAX
+            val lineStartOffset = document.getLineStartOffset(line)
+            val lineEndOffset = document.getLineEndOffset(line)
+            val highlighter = editor.markupModel.addRangeHighlighter(
+                lineStartOffset,
+                lineEndOffset,
+                HighlighterLayer.ADDITIONAL_SYNTAX,
+                null,
+                HighlighterTargetArea.LINES_IN_RANGE
             )
             highlighter.gutterIconRenderer = NoteGutterIconRenderer(project, marker)
         }

@@ -52,7 +52,6 @@ object CodeReviewExportService {
                 add("\u8D70\u67E5\u8303\u56F4\uFF1A${review.scope.ifBlank { "\u672A\u586B\u5199" }}")
                 add("\u95EE\u9898\u6982\u89C8\uFF1A\u5171 ${issues.size} \u4E2A\u95EE\u9898\uFF0C\u5F85\u8DDF\u8FDB ${issues.count { !it.isClosed() }} \u4E2A\u3002")
                 if (review.conclusion.isNotBlank()) add("\u8D70\u67E5\u7ED3\u8BBA\uFF1A${review.conclusion}")
-                if (review.notes.isNotBlank()) add("\u8865\u5145\u8BF4\u660E\uFF1A${review.notes}")
             }.map { ExportLine(it) }
             sheet.writeMergedLines(11, 6, 17, contentLines)
 
@@ -65,6 +64,9 @@ object CodeReviewExportService {
             )
 
             val otherLines = buildList {
+                review.notesLines().forEachIndexed { index, note ->
+                    add("\u5176\u4ED6\u6CE8\u610F\u4E8B\u9879 ${index + 1}\uFF1A$note")
+                }
                 val closedIssues = issues.filter { it.isClosed() }
                 if (closedIssues.isNotEmpty()) {
                     add("\u5DF2\u5B8C\u6210\u6216\u5F52\u6863\u95EE\u9898\uFF1A${closedIssues.joinToString("\uFF1B") { it.title.ifBlank { it.id } }}")
@@ -97,6 +99,12 @@ object CodeReviewExportService {
         val statusCode = LocalizedEnumLabels.statusCode(status)
         return statusCode == TodoStatus.DONE || statusCode == TodoStatus.ARCHIVED
     }
+
+    private fun CodeReviewEntity.notesLines(): List<String> =
+        notes
+            .split(Regex("\\r?\\n"))
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
 
     private fun issueLine(index: Int, issue: CodeReviewIssueEntity): ExportLine {
         val severity = severityOf(issue.severity)
