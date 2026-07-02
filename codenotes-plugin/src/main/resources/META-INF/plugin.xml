@@ -1,7 +1,7 @@
 <idea-plugin>
     <id>com.codenotes.plugin</id>
     <name>Code Notes</name>
-    <vendor email="support@example.com" url="https://example.com">Code Notes</vendor>
+    <vendor>liangp_9</vendor>
 
     <description><![CDATA[
       <p>Attach persistent, structured knowledge notes directly to your source code —
@@ -24,11 +24,12 @@
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow id="Code Notes"
                     anchor="right"
-                    icon="AllIcons.General.BalloonInformation"
+                    icon="/icons/toolWindowIcon.svg"
                     factoryClass="com.codenotes.plugin.toolwindow.CodeNotesToolWindowFactory"/>
 
         <projectService serviceImplementation="com.codenotes.plugin.state.NoteStorageService"/>
         <projectService serviceImplementation="com.codenotes.plugin.repository.NoteRepository"/>
+        <projectService serviceImplementation="com.codenotes.plugin.repository.CodeReviewRepository"/>
         <applicationService serviceImplementation="com.codenotes.plugin.settings.CodeNotesSettingsState"/>
 
         <applicationConfigurable
@@ -52,6 +53,10 @@
             <action id="CodeNotes.AddClipboardNote"
                     class="com.codenotes.plugin.actions.AddClipboardNoteAction">
                 <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt V"/>
+            </action>
+            <action id="CodeNotes.AddCodeReviewIssue"
+                    class="com.codenotes.plugin.actions.AddCodeReviewIssueAction">
+                <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt R"/>
             </action>
         </group>
     </actions>

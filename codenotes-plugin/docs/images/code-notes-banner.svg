@@ -1,0 +1,42 @@
+<svg width="1280" height="360" viewBox="0 0 1280 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Code Notes banner">
+  <defs>
+    <linearGradient id="banner-bg" x1="80" y1="40" x2="1160" y2="320" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F172A"/>
+      <stop offset="0.42" stop-color="#075985"/>
+      <stop offset="1" stop-color="#312E81"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#FFFFFF" stop-opacity="0.96"/>
+      <stop offset="1" stop-color="#E0F2FE" stop-opacity="0.92"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="360" rx="0" fill="url(#banner-bg)"/>
+  <path d="M0 292c166-44 282-38 438 0 210 51 388 45 842-54v122H0Z" fill="#020617" opacity="0.22"/>
+  <g transform="translate(72 72)">
+    <rect width="136" height="136" rx="28" fill="#38BDF8"/>
+    <path d="M49 48 30 68l19 20M87 48l19 20-19 20" fill="none" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="54" y="35" width="52" height="72" rx="10" fill="url(#card)" stroke="#FFFFFF" stroke-width="3"/>
+    <path d="M68 56h24M68 72h24M68 88h13" stroke="#2563EB" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="106" cy="106" r="23" fill="#22C55E" stroke="#FFFFFF" stroke-width="5"/>
+    <path d="m96 106 7 7 14-16" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <g transform="translate(250 88)" fill="#FFFFFF">
+    <text x="0" y="58" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="58" font-weight="800">Code Notes</text>
+    <text x="0" y="105" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="25" opacity="0.88">Local-first IDEA project knowledge base for notes, anchors, reviews, and reports.</text>
+  </g>
+  <g transform="translate(254 230)" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">
+    <rect x="0" y="-34" width="170" height="48" rx="10" fill="#FFFFFF" opacity="0.14"/>
+    <text x="20" y="-3" fill="#E0F2FE">Code Anchors</text>
+    <rect x="190" y="-34" width="184" height="48" rx="10" fill="#FFFFFF" opacity="0.14"/>
+    <text x="210" y="-3" fill="#E0F2FE">Markdown Notes</text>
+    <rect x="394" y="-34" width="166" height="48" rx="10" fill="#FFFFFF" opacity="0.14"/>
+    <text x="414" y="-3" fill="#E0F2FE">Review Flow</text>
+    <rect x="580" y="-34" width="158" height="48" rx="10" fill="#FFFFFF" opacity="0.14"/>
+    <text x="600" y="-3" fill="#E0F2FE">XLSX Export</text>
+  </g>
+  <g transform="translate(968 78)" opacity="0.92">
+    <rect width="220" height="210" rx="18" fill="#FFFFFF" opacity="0.12" stroke="#FFFFFF" stroke-opacity="0.24"/>
+    <path d="M40 54h64M40 88h140M40 122h104M40 156h124" stroke="#BAE6FD" stroke-width="10" stroke-linecap="round"/>
+    <path d="m153 54 14 14 28-32" fill="none" stroke="#4ADE80" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

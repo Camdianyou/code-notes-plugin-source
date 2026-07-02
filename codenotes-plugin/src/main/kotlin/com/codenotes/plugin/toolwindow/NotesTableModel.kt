@@ -3,6 +3,7 @@ package com.codenotes.plugin.toolwindow
 import com.codenotes.plugin.model.NoteEntity
 import com.codenotes.plugin.model.NoteType
 import com.codenotes.plugin.util.CodeNotesBundle
+import com.codenotes.plugin.util.LocalizedEnumLabels
 import java.text.SimpleDateFormat
 import java.util.Date
 import javax.swing.table.AbstractTableModel
@@ -34,7 +35,7 @@ class NotesTableModel : AbstractTableModel() {
     override fun getValueAt(rowIndex: Int, columnIndex: Int): Any {
         val note = notes[rowIndex]
         return when (columnIndex) {
-            0 -> NoteType.safeValueOf(note.type).icon + " " + note.type
+            0 -> NoteType.safeValueOf(note.type).icon + " " + LocalizedEnumLabels.noteType(note.type)
             1 -> note.title.ifBlank { "(untitled)" }
             2 -> note.filePath
             3 -> if (note.lineStart >= 0) (note.lineStart + 1).toString() else ""

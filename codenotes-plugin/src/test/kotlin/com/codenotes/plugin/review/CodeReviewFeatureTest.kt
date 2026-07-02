@@ -1,0 +1,183 @@
+package com.codenotes.plugin.review
+
+import com.codenotes.plugin.model.CodeReviewEntity
+import com.codenotes.plugin.model.CodeReviewIssueEntity
+import com.codenotes.plugin.model.NoteEntity
+import com.codenotes.plugin.model.NoteType
+import com.codenotes.plugin.model.TodoPriority
+import com.codenotes.plugin.model.TodoStatus
+import com.codenotes.plugin.state.NoteStorageState
+import com.codenotes.plugin.util.LocalizedEnumLabels
+import org.apache.poi.ss.usermodel.IndexedColors
+import org.apache.poi.ss.usermodel.WorkbookFactory
+import java.io.File
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+
+class CodeReviewFeatureTest {
+
+    @Test
+    fun `old storage state starts with empty code review collections`() {
+        val state = NoteStorageState()
+
+        assertTrue(state.codeReviews.isEmpty())
+        assertTrue(state.codeReviewIssues.isEmpty())
+    }
+
+    @Test
+    fun `localized enum labels convert both directions`() {
+        assertEquals("\u7F3A\u9677", LocalizedEnumLabels.noteType(NoteType.BUG))
+        assertEquals(NoteType.BUG, LocalizedEnumLabels.noteTypeCode("\u7F3A\u9677"))
+        assertEquals(NoteType.BUG, LocalizedEnumLabels.noteTypeCode("BUG"))
+        assertEquals("\u9AD8", LocalizedEnumLabels.priority(TodoPriority.HIGH))
+        assertEquals(TodoPriority.HIGH, LocalizedEnumLabels.priorityCode("\u9AD8"))
+        assertEquals("\u5F85\u529E", LocalizedEnumLabels.status(TodoStatus.TODO))
+        assertEquals(TodoStatus.TODO, LocalizedEnumLabels.statusCode("\u5F85\u529E"))
+    }
+
+    @Test
+    fun `creates code review issue snapshot from note with stable enum codes`() {
+        val note = NoteEntity().apply {
+            id = "note-1"
+            title = "\u7A7A\u6307\u9488\u98CE\u9669"
+            summary = "\u9700\u8981\u5224\u7A7A"
+            description = "\u8C03\u7528\u524D\u6CA1\u6709\u68C0\u67E5 null"
+            filePath = "src/Foo.kt"
+            lineStart = 9
+            lineEnd = 10
+            symbolQualifiedName = "com.example.Foo.bar"
+            type = "\u7F3A\u9677"
+            priority = "\u9AD8"
+            status = "\u5F85\u529E"
+            dueDate = "2026-07-03"
+        }
+
+        val issue = CodeReviewIssueFactory.fromNote("review-1", note)
+
+        assertEquals("review-1", issue.reviewId)
+        assertEquals("note-1", issue.noteId)
+        assertEquals("\u7A7A\u6307\u9488\u98CE\u9669", issue.title)
+        assertEquals("\u8C03\u7528\u524D\u6CA1\u6709\u68C0\u67E5 null", issue.description)
+        assertEquals("src/Foo.kt", issue.filePath)
+        assertEquals(9, issue.lineStart)
+        assertEquals("com.example.Foo.bar", issue.symbolQualifiedName)
+        assertEquals(NoteType.BUG.name, issue.issueType)
+        assertEquals(TodoPriority.HIGH.name, issue.severity)
+        assertEquals(TodoStatus.TODO.name, issue.status)
+        assertEquals("2026-07-03", issue.dueDate)
+    }
+
+    @Test
+    fun `validator only reports fields that need user input`() {
+        val review = CodeReviewEntity()
+        val issue = CodeReviewIssueEntity().apply {
+            id = "issue-1"
+            filePath = "src/Foo.kt"
+        }
+
+        val result = CodeReviewExportValidator.validate(review, listOf(issue))
+
+        assertFalse(result.isValid)
+        assertTrue("\u4F1A\u8BAE\u540D\u79F0" in result.missingReviewFields)
+        assertTrue("\u8BB0\u5F55\u4EBA" in result.missingReviewFields)
+        assertTrue("\u6807\u9898" in result.missingIssueFields.getValue("issue-1"))
+        assertTrue("\u95EE\u9898\u63CF\u8FF0" in result.missingIssueFields.getValue("issue-1"))
+        assertTrue("\u884C\u53F7\u6216\u7B26\u53F7" in result.missingIssueFields.getValue("issue-1"))
+        assertFalse("\u95EE\u9898\u7C7B\u578B" in result.missingIssueFields.getValue("issue-1"))
+        assertFalse("\u4E25\u91CD\u7A0B\u5EA6" in result.missingIssueFields.getValue("issue-1"))
+        assertFalse("\u72B6\u6001" in result.missingIssueFields.getValue("issue-1"))
+    }
+
+    @Test
+    fun `exports compact follow up issues with short symbols and severity colors`() {
+        val review = CodeReviewEntity().apply {
+            meetingName = "\u652F\u4ED8\u6A21\u5757\u4EE3\u7801\u8D70\u67E5"
+            meetingDate = "2026-07-02"
+            location = "\u7EBF\u4E0A"
+            startTime = "10:00"
+            endTime = "11:00"
+            host = "\u5F20\u4E09"
+            recorder = "\u674E\u56DB"
+            attendees = "\u5F20\u4E09\u3001\u674E\u56DB"
+            topic = "\u652F\u4ED8\u6A21\u5757\u8D70\u67E5"
+            scope = "\u652F\u4ED8\u4E0B\u5355\u4E0E\u56DE\u8C03"
+            conclusion = "\u9700\u8981\u4FEE\u590D\u9AD8\u4F18\u95EE\u9898"
+        }
+        val issues = listOf(
+            CodeReviewIssueEntity().apply {
+                title = "\u91D1\u989D\u7CBE\u5EA6\u98CE\u9669"
+                description = "\u91D1\u989D\u4F7F\u7528 Double \u8BA1\u7B97"
+                filePath = "src/main/kotlin/com/example/payment/PayService.kt"
+                lineStart = 11
+                symbolQualifiedName = "com.example.payment.PayService.createOrder"
+                issueType = NoteType.BUG.name
+                severity = TodoPriority.HIGH.name
+                status = TodoStatus.TODO.name
+                owner = "\u738B\u4E94"
+                suggestion = "\u6539\u7528 BigDecimal"
+            },
+            CodeReviewIssueEntity().apply {
+                title = "\u65E5\u5FD7\u7F3A\u5931"
+                description = "\u5931\u8D25\u5206\u652F\u6CA1\u6709\u5173\u952E\u65E5\u5FD7"
+                filePath = "src/main/kotlin/com/example/payment/RefundService.kt"
+                lineStart = 21
+                severity = TodoPriority.MEDIUM.name
+            },
+            CodeReviewIssueEntity().apply {
+                title = "\u547D\u540D\u53EF\u4F18\u5316"
+                description = "\u5C40\u90E8\u53D8\u91CF\u547D\u540D\u4E0D\u591F\u6E05\u6670"
+                filePath = "src/Name.kt"
+                lineStart = 2
+                severity = TodoPriority.LOW.name
+            },
+            CodeReviewIssueEntity().apply {
+                title = "\u7A7A\u6307\u9488\u98CE\u9669"
+                description = "\u8C03\u7528\u524D\u672A\u5224\u7A7A"
+                symbolQualifiedName = "com.example.UserService.load"
+                severity = TodoPriority.CRITICAL.name
+            }
+        )
+        val template = requireNotNull(javaClass.getResourceAsStream("/templates/code-review-meeting-template.xlsx"))
+        val target = File.createTempFile("code-review", ".xlsx")
+
+        CodeReviewExportService.exportWithTemplate(template, review, issues, target)
+
+        WorkbookFactory.create(target).use { workbook ->
+            val sheet = workbook.getSheetAt(0)
+            assertEquals("\u652F\u4ED8\u6A21\u5757\u4EE3\u7801\u8D70\u67E5", sheet.getRow(1).getCell(1).stringCellValue)
+            assertEquals("2026-07-02", sheet.getRow(2).getCell(1).stringCellValue)
+            assertTrue(sheet.getRow(10).getCell(0).stringCellValue.contains("\u652F\u4ED8\u4E0B\u5355\u4E0E\u56DE\u8C03"))
+
+            val highCell = sheet.getRow(17).getCell(0)
+            val highLine = highCell.stringCellValue
+            assertTrue(highLine.contains("[\u9AD8]"))
+            assertTrue(highLine.contains("\u91D1\u989D\u7CBE\u5EA6\u98CE\u9669"))
+            assertTrue(highLine.contains("PayService.createOrder"))
+            assertFalse(highLine.contains("com.example.payment"))
+            assertFalse(highLine.contains("src/main/kotlin"))
+            assertFalse(highLine.contains("\u5F85\u529E"))
+            assertFalse(highLine.contains("\u7F3A\u9677"))
+            assertFalse(highLine.contains("TODO"))
+            assertFalse(highLine.contains("BUG"))
+
+            val mediumCell = sheet.getRow(18).getCell(0)
+            assertTrue(mediumCell.stringCellValue.contains("[\u4E2D]"))
+            assertTrue(mediumCell.stringCellValue.contains("RefundService.kt:22"))
+            assertFalse(mediumCell.stringCellValue.contains("src/main/kotlin"))
+
+            val lowCell = sheet.getRow(19).getCell(0)
+            assertTrue(lowCell.stringCellValue.contains("[\u4F4E]"))
+
+            val criticalCell = sheet.getRow(20).getCell(0)
+            assertTrue(criticalCell.stringCellValue.contains("[\u7D27\u6025]"))
+            assertTrue(criticalCell.stringCellValue.contains("UserService.load"))
+
+            assertEquals(IndexedColors.RED.index, workbook.getFontAt(highCell.cellStyle.fontIndexAsInt).color)
+            assertEquals(IndexedColors.DARK_YELLOW.index, workbook.getFontAt(mediumCell.cellStyle.fontIndexAsInt).color)
+            assertEquals(IndexedColors.GREEN.index, workbook.getFontAt(lowCell.cellStyle.fontIndexAsInt).color)
+            assertEquals(IndexedColors.RED.index, workbook.getFontAt(criticalCell.cellStyle.fontIndexAsInt).color)
+        }
+    }
+}

@@ -14,9 +14,15 @@ import com.codenotes.plugin.model.NoteType
 import com.codenotes.plugin.model.SymbolAnchor
 import com.codenotes.plugin.model.TodoPriority
 import com.codenotes.plugin.model.TodoStatus
+import com.codenotes.plugin.repository.CodeReviewRepository
 import com.codenotes.plugin.repository.NoteRepository
+import com.codenotes.plugin.review.CodeReviewDefaults
+import com.codenotes.plugin.review.CodeReviewIssueFactory
 import com.codenotes.plugin.util.AnchorUtil
 import com.codenotes.plugin.util.CodeNotesBundle
+import com.codenotes.plugin.util.CodeNotesIcons
+import com.codenotes.plugin.util.CodeNotesUi
+import com.codenotes.plugin.util.LocalizedEnumLabels
 import com.codenotes.plugin.util.MarkdownPreview
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
@@ -37,7 +43,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
-import javax.swing.JButton
 import javax.swing.JComboBox
 import javax.swing.JEditorPane
 import javax.swing.JFileChooser
@@ -48,6 +53,7 @@ import javax.swing.JSplitPane
 import javax.swing.JTabbedPane
 import javax.swing.ListSelectionModel
 import javax.swing.SwingUtilities
+import javax.swing.border.EmptyBorder
 import javax.swing.event.DocumentEvent
 
 class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Disposable {
@@ -67,7 +73,7 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
     private val priorityCombo = JComboBox(TodoPriority.entries.toTypedArray())
     private val statusCombo = JComboBox(TodoStatus.entries.toTypedArray())
     private val dueDateField = JBTextField()
-    private val favoriteBox = JBCheckBox("Favorite")
+    private val favoriteBox = JBCheckBox(CodeNotesBundle.message("panel.field.favorite"))
     private val anchorLabel = JLabel("")
     private val updatedLabel = JLabel("")
     private val previewPane = JEditorPane("text/html", "")
@@ -97,8 +103,9 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
             }
         }
 
-        noteList.selectionMode = ListSelectionModel.SINGLE_SELECTION
+        noteList.selectionMode = ListSelectionModel.MULTIPLE_INTERVAL_SELECTION
         noteList.cellRenderer = NoteRenderer()
+        noteList.emptyText.text = CodeNotesBundle.message("panel.empty.list")
         noteList.addListSelectionListener {
             if (!it.valueIsAdjusting) loadSelectedNote()
         }
@@ -111,6 +118,10 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
         descriptionArea.lineWrap = true
         descriptionArea.wrapStyleWord = true
         previewPane.isEditable = false
+        attachmentList.emptyText.text = CodeNotesBundle.message("panel.empty.list")
+        typeCombo.renderer = localizedRenderer<NoteType> { LocalizedEnumLabels.noteType(it) }
+        priorityCombo.renderer = localizedRenderer<TodoPriority> { LocalizedEnumLabels.priority(it) }
+        statusCombo.renderer = localizedRenderer<TodoStatus> { LocalizedEnumLabels.status(it) }
 
         add(toolbar(), BorderLayout.NORTH)
         add(workspace(), BorderLayout.CENTER)
@@ -119,13 +130,15 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
 
     private fun toolbar(): JPanel {
         val panel = JPanel(BorderLayout(8, 0))
-        val buttons = JPanel()
-        buttons.add(JButton("New").apply { addActionListener { createProjectNote() } })
-        buttons.add(JButton("Save").apply { addActionListener { saveSelectedNote() } })
-        buttons.add(JButton("Delete").apply { addActionListener { deleteSelectedNote() } })
-        buttons.add(JButton("Open").apply { addActionListener { navigateToSelected() } })
-        buttons.add(JButton("Export").apply { addActionListener { exportNotes() } })
-        buttons.add(JButton("Import").apply { addActionListener { importNotes() } })
+        val buttons = CodeNotesUi.toolbarPanel()
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.new"), CodeNotesIcons.AddNote, primary = true) { createProjectNote() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.save"), CodeNotesIcons.Save) { saveSelectedNote() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.delete"), CodeNotesIcons.Delete) { deleteSelectedNote() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.open"), CodeNotesIcons.Open) { navigateToSelected() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.addToReview"), CodeNotesIcons.ReviewIssue) { addSelectedNoteToReview() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.export"), CodeNotesIcons.Export) { exportNotes() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.import"), CodeNotesIcons.Import) { importNotes() })
+        panel.border = EmptyBorder(6, 8, 6, 8)
         panel.add(searchField, BorderLayout.CENTER)
         panel.add(buttons, BorderLayout.EAST)
         return panel
@@ -164,37 +177,38 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
         fields.add(statusCombo)
         fields.add(JLabel(CodeNotesBundle.message("dialog.field.dueDate")))
         fields.add(dueDateField)
-        fields.add(JLabel("Flags"))
+        fields.add(JLabel(CodeNotesBundle.message("panel.field.flags")))
         fields.add(favoriteBox)
-        fields.add(JLabel("Anchor"))
+        fields.add(JLabel(CodeNotesBundle.message("panel.field.anchor")))
         fields.add(anchorLabel)
-        fields.add(JLabel("Updated"))
+        fields.add(JLabel(CodeNotesBundle.message("panel.field.updated")))
         fields.add(updatedLabel)
 
         val tabs = JTabbedPane()
-        tabs.addTab("Markdown", JBScrollPane(descriptionArea))
-        tabs.addTab("Preview", JBScrollPane(previewPane))
+        tabs.addTab(CodeNotesBundle.message("panel.tab.markdown"), CodeNotesIcons.Markdown, JBScrollPane(descriptionArea))
+        tabs.addTab(CodeNotesBundle.message("panel.tab.preview"), CodeNotesIcons.Preview, JBScrollPane(previewPane))
         tabs.addChangeListener {
             if (tabs.selectedIndex == 1) {
                 previewPane.text = MarkdownPreview.toHtml(descriptionArea.text)
             }
         }
 
-        val panel = JPanel(BorderLayout(0, 8))
-        panel.add(fields, BorderLayout.NORTH)
-        panel.add(tabs, BorderLayout.CENTER)
+        val panel = CodeNotesUi.detailPanel()
+        panel.add(CodeNotesUi.section(CodeNotesBundle.message("panel.section.basic"), CodeNotesIcons.Info, fields), BorderLayout.NORTH)
+        panel.add(CodeNotesUi.section(CodeNotesBundle.message("panel.section.content"), CodeNotesIcons.Markdown, tabs), BorderLayout.CENTER)
         panel.add(attachmentPanel(), BorderLayout.SOUTH)
         return panel
     }
 
     private fun attachmentPanel(): JPanel {
-        val buttons = JPanel()
-        buttons.add(JButton("Add attachment").apply { addActionListener { addAttachment() } })
-        buttons.add(JButton("Open").apply { addActionListener { openAttachment() } })
-        buttons.add(JButton("Remove").apply { addActionListener { removeAttachment() } })
+        val buttons = CodeNotesUi.toolbarPanel()
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.attachments.add"), CodeNotesIcons.Attachment) { addAttachment() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.attachments.open"), CodeNotesIcons.Open) { openAttachment() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.attachments.remove"), CodeNotesIcons.Delete) { removeAttachment() })
         val panel = JPanel(BorderLayout())
         panel.preferredSize = Dimension(100, 120)
-        panel.add(JLabel("Attachments"), BorderLayout.NORTH)
+        panel.border = EmptyBorder(4, 0, 0, 0)
+        panel.add(CodeNotesUi.sectionHeader(CodeNotesBundle.message("panel.attachments.title"), CodeNotesIcons.Attachment), BorderLayout.NORTH)
         panel.add(JBScrollPane(attachmentList), BorderLayout.CENTER)
         panel.add(buttons, BorderLayout.SOUTH)
         return panel
@@ -210,9 +224,11 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
         filterModel.clear()
         val notes = repository.allNotes()
         filterModel.addElement(FilterItem.all())
-        filterModel.addElement(FilterItem("favorite", "Favorites", favoritesOnly = true))
+        filterModel.addElement(
+            FilterItem("favorite", CodeNotesBundle.message("panel.filter.favorites"), favoritesOnly = true)
+        )
         TodoStatus.entries.forEach { status ->
-            filterModel.addElement(FilterItem("status:${status.name}", status.name, statuses = setOf(status.name)))
+            filterModel.addElement(FilterItem("status:${status.name}", LocalizedEnumLabels.status(status), statuses = setOf(status.name)))
         }
         notes.flatMap { it.tags.split(',') }
             .map { it.trim() }
@@ -245,18 +261,18 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
     private fun loadSelectedNote() {
         val note = noteList.selectedValue ?: return
         loading = true
-        typeCombo.selectedItem = NoteType.safeValueOf(note.type)
+        typeCombo.selectedItem = LocalizedEnumLabels.noteTypeCode(note.type) ?: NoteType.COMMENT
         titleField.text = note.title
         summaryField.text = note.summary
         descriptionArea.text = note.description
         tagsField.text = note.tags
-        priorityCombo.selectedItem = runCatching { TodoPriority.valueOf(note.priority) }.getOrDefault(TodoPriority.MEDIUM)
-        statusCombo.selectedItem = runCatching { TodoStatus.valueOf(note.status) }.getOrDefault(TodoStatus.TODO)
+        priorityCombo.selectedItem = LocalizedEnumLabels.priorityCode(note.priority) ?: TodoPriority.MEDIUM
+        statusCombo.selectedItem = LocalizedEnumLabels.statusCode(note.status) ?: TodoStatus.TODO
         dueDateField.text = note.dueDate
         favoriteBox.isSelected = note.favorite
         anchorLabel.text = when (note.anchorType) {
-            NoteAnchor.SYMBOL.name -> "${note.symbolLanguage} ${note.symbolKind} ${note.symbolQualifiedName}"
-            NoteAnchor.PROJECT.name -> "Project"
+            NoteAnchor.SYMBOL.name -> "${note.symbolLanguage} ${symbolKindLabel(note.symbolKind)} ${note.symbolQualifiedName}"
+            NoteAnchor.PROJECT.name -> CodeNotesBundle.message("panel.anchor.project")
             else -> "${note.filePath}:${note.lineStart + 1}"
         }
         updatedLabel.text = dateFormat.format(Date(note.updatedAt))
@@ -272,7 +288,7 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
         val note = NoteEntity().apply {
             anchorType = NoteAnchor.PROJECT.name
             scope = NoteScope.PROJECT.name
-            title = "Untitled note"
+            title = CodeNotesBundle.message("panel.default.untitled")
             type = NoteType.COMMENT.name
             author = System.getProperty("user.name") ?: ""
         }
@@ -337,13 +353,29 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
         val chooser = JFileChooser()
         if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             val state = NoteBackupService.importFrom(chooser.selectedFile)
-            repository.replaceAll(state.notes, state.folders)
+            repository.replaceAll(state.notes, state.folders, state.codeReviews, state.codeReviewIssues)
         }
     }
 
     private fun deleteSelectedNote() {
         val note = noteList.selectedValue ?: return
         repository.delete(note.id)
+    }
+
+    private fun addSelectedNoteToReview() {
+        val notes = noteList.selectedValuesList.ifEmpty {
+            noteList.selectedValue?.let { listOf(it) } ?: emptyList()
+        }
+        if (notes.isEmpty()) return
+        val reviewRepository = CodeReviewRepository.getInstance(project)
+        val review = CodeReviewDefaults.getOrCreateDefaultReview(reviewRepository)
+        notes.forEach { note ->
+            reviewRepository.addIssue(CodeReviewIssueFactory.fromNote(review.id, note))
+        }
+        com.intellij.notification.NotificationGroupManager.getInstance()
+            .getNotificationGroup("CodeNotes.Notifications")
+            .createNotification(CodeNotesBundle.message("notification.reviewIssueAdded"), com.intellij.notification.NotificationType.INFORMATION)
+            .notify(project)
     }
 
     private fun navigateToSelected() {
@@ -379,11 +411,11 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
         val favoritesOnly: Boolean = false
     ) {
         companion object {
-            fun all() = FilterItem("all", "All Notes")
+            fun all() = FilterItem("all", CodeNotesBundle.message("panel.filter.all"))
         }
     }
 
-    private class FilterRenderer : DefaultListCellRenderer() {
+    private inner class FilterRenderer : DefaultListCellRenderer() {
         override fun getListCellRendererComponent(
             list: JList<*>?,
             value: Any?,
@@ -392,12 +424,21 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
             cellHasFocus: Boolean
         ): Component {
             val component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus) as JLabel
-            component.text = (value as? FilterItem)?.label ?: ""
+            val item = value as? FilterItem
+            component.text = item?.label ?: ""
+            val icon = when {
+                item?.key == "all" -> CodeNotesIcons.Notes
+                item?.key == "favorite" -> CodeNotesIcons.Favorite
+                item?.key?.startsWith("status:") == true -> CodeNotesIcons.Status
+                item?.key?.startsWith("tag:") == true -> CodeNotesIcons.Tag
+                else -> CodeNotesIcons.Filter
+            }
+            CodeNotesUi.tuneListLabel(component, isSelected, icon)
             return component
         }
     }
 
-    private class NoteRenderer : DefaultListCellRenderer() {
+    private inner class NoteRenderer : DefaultListCellRenderer() {
         override fun getListCellRendererComponent(
             list: JList<*>?,
             value: Any?,
@@ -408,13 +449,44 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
             val component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus) as JLabel
             val note = value as? NoteEntity
             if (note != null) {
-                val title = note.title.ifBlank { "(untitled)" }
-                val location = if (note.symbolQualifiedName.isNotBlank()) note.symbolQualifiedName else note.filePath
-                component.text = "${NoteType.safeValueOf(note.type).icon} $title  ·  $location"
+                val title = note.title.ifBlank { CodeNotesBundle.message("panel.default.untitled") }
+                val location = if (note.symbolQualifiedName.isNotBlank()) note.symbolQualifiedName else note.filePath.ifBlank {
+                    CodeNotesBundle.message("panel.anchor.project")
+                }
+                val type = LocalizedEnumLabels.noteType(note.type)
+                val icon = (LocalizedEnumLabels.noteTypeCode(note.type) ?: NoteType.COMMENT).icon
+                val priority = LocalizedEnumLabels.priority(note.priority)
+                val status = LocalizedEnumLabels.status(note.status)
+                component.text = CodeNotesUi.htmlBadge("$icon $title", "$type / $priority / $status", location)
             }
+            CodeNotesUi.tuneListLabel(component, isSelected, CodeNotesIcons.Notes)
             return component
         }
     }
+
+    private fun <T> localizedRenderer(label: (T) -> String) = object : DefaultListCellRenderer() {
+        override fun getListCellRendererComponent(
+            list: JList<*>?,
+            value: Any?,
+            index: Int,
+            isSelected: Boolean,
+            cellHasFocus: Boolean
+        ): Component {
+            val component = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus) as JLabel
+            @Suppress("UNCHECKED_CAST")
+            component.text = value?.let { label(it as T) }.orEmpty()
+            component.border = EmptyBorder(4, 8, 4, 8)
+            return component
+        }
+    }
+
+    private fun symbolKindLabel(kind: String): String =
+        when (kind) {
+            "CLASS" -> CodeNotesBundle.message("symbol.kind.class")
+            "METHOD" -> CodeNotesBundle.message("symbol.kind.method")
+            "FIELD" -> CodeNotesBundle.message("symbol.kind.field")
+            else -> kind
+        }
 
     override fun dispose() {
     }

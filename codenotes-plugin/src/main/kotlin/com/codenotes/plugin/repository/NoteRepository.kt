@@ -53,8 +53,13 @@ class NoteRepository(private val project: Project) {
         publish(NoteChangeKind.DELETED, note, id)
     }
 
-    fun replaceAll(notes: List<NoteEntity>, folders: List<NoteFolder>) {
-        storage.replaceAll(notes, folders)
+    fun replaceAll(
+        notes: List<NoteEntity>,
+        folders: List<NoteFolder>,
+        codeReviews: List<com.codenotes.plugin.model.CodeReviewEntity> = storage.getCodeReviews(),
+        codeReviewIssues: List<com.codenotes.plugin.model.CodeReviewIssueEntity> = storage.getAllCodeReviewIssues()
+    ) {
+        storage.replaceAll(notes, folders, codeReviews, codeReviewIssues)
         publish(NoteChangeKind.IMPORTED)
     }
 

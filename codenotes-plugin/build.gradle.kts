@@ -11,11 +11,19 @@ repositories {
     mavenCentral()
 }
 
-// No extra runtime dependencies beyond the IntelliJ Platform + Kotlin stdlib,
-// so the plugin has zero external attack surface / dependency conflicts.
 dependencies {
+    implementation("org.apache.poi:poi-ooxml:5.2.5")
+    implementation("commons-io:commons-io:2.15.1")
+    implementation("org.apache.commons:commons-compress:1.25.0")
+    implementation("org.apache.xmlbeans:xmlbeans:5.2.0")
     testImplementation(kotlin("test"))
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+configurations.all {
+    resolutionStrategy.force("commons-io:commons-io:2.15.1")
+    resolutionStrategy.force("org.apache.commons:commons-compress:1.25.0")
+    resolutionStrategy.force("org.apache.xmlbeans:xmlbeans:5.2.0")
 }
 
 intellij {
