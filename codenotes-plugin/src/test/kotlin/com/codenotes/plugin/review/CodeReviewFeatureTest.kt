@@ -8,6 +8,7 @@ import com.codenotes.plugin.model.TodoPriority
 import com.codenotes.plugin.model.TodoStatus
 import com.codenotes.plugin.state.NoteStorageState
 import com.codenotes.plugin.util.LocalizedEnumLabels
+import org.apache.poi.ss.usermodel.HorizontalAlignment
 import org.apache.poi.ss.usermodel.IndexedColors
 import org.apache.poi.ss.usermodel.WorkbookFactory
 import java.io.File
@@ -147,15 +148,23 @@ class CodeReviewFeatureTest {
 
         WorkbookFactory.create(target).use { workbook ->
             val sheet = workbook.getSheetAt(0)
-            assertEquals("\u652F\u4ED8\u6A21\u5757\u4EE3\u7801\u8D70\u67E5", sheet.getRow(1).getCell(1).stringCellValue)
-            assertEquals("2026-07-02", sheet.getRow(2).getCell(1).stringCellValue)
+            val meetingNameCell = sheet.getRow(1).getCell(1)
+            val meetingDateCell = sheet.getRow(2).getCell(1)
+            val locationCell = sheet.getRow(2).getCell(3)
+            assertEquals("\u652F\u4ED8\u6A21\u5757\u4EE3\u7801\u8D70\u67E5", meetingNameCell.stringCellValue)
+            assertEquals("2026-07-02", meetingDateCell.stringCellValue)
+            assertEquals(HorizontalAlignment.LEFT, meetingNameCell.cellStyle.alignment)
+            assertEquals(HorizontalAlignment.LEFT, meetingDateCell.cellStyle.alignment)
+            assertEquals(HorizontalAlignment.LEFT, locationCell.cellStyle.alignment)
             assertEquals("\u4E00\u3001\u8D70\u67E5\u8303\u56F4", sheet.getRow(10).getCell(0).stringCellValue)
-            assertEquals("1. \u652F\u4ED8\u4E0B\u5355\u6D41\u7A0B", sheet.getRow(11).getCell(0).stringCellValue)
-            assertEquals("2. \u56DE\u8C03\u9A8C\u7B7E\u903B\u8F91", sheet.getRow(12).getCell(0).stringCellValue)
+            assertEquals("  1. \u652F\u4ED8\u4E0B\u5355\u6D41\u7A0B", sheet.getRow(11).getCell(0).stringCellValue)
+            assertEquals("  2. \u56DE\u8C03\u9A8C\u7B7E\u903B\u8F91", sheet.getRow(12).getCell(0).stringCellValue)
+            assertEquals(HorizontalAlignment.LEFT, sheet.getRow(11).getCell(0).cellStyle.alignment)
             assertFalse(sheet.getRow(13).getCell(0).stringCellValue.contains("\u8D70\u67E5\u7ED3\u8BBA"))
 
             val highCell = sheet.getRow(17).getCell(0)
             val highLine = highCell.stringCellValue
+            assertTrue(highLine.startsWith("  1. "))
             assertTrue(highLine.contains("[\u9AD8]"))
             assertTrue(highLine.contains("\u91D1\u989D\u7CBE\u5EA6\u98CE\u9669"))
             assertTrue(highLine.contains("PayService.createOrder"))
@@ -165,8 +174,10 @@ class CodeReviewFeatureTest {
             assertFalse(highLine.contains("\u7F3A\u9677"))
             assertFalse(highLine.contains("TODO"))
             assertFalse(highLine.contains("BUG"))
+            assertEquals(HorizontalAlignment.LEFT, highCell.cellStyle.alignment)
 
             val mediumCell = sheet.getRow(18).getCell(0)
+            assertTrue(mediumCell.stringCellValue.startsWith("  2. "))
             assertTrue(mediumCell.stringCellValue.contains("[\u4E2D]"))
             assertTrue(mediumCell.stringCellValue.contains("RefundService.kt:22"))
             assertFalse(mediumCell.stringCellValue.contains("src/main/kotlin"))
@@ -180,6 +191,8 @@ class CodeReviewFeatureTest {
 
             val noteLineOne = sheet.getRow(23).getCell(0).stringCellValue
             val noteLineTwo = sheet.getRow(24).getCell(0).stringCellValue
+            assertTrue(noteLineOne.startsWith("  "))
+            assertTrue(noteLineTwo.startsWith("  "))
             assertTrue(noteLineOne.contains("\u5176\u4ED6\u6CE8\u610F\u4E8B\u9879 1\uFF1A\u6CE8\u610F\u4E00"))
             assertTrue(noteLineTwo.contains("\u5176\u4ED6\u6CE8\u610F\u4E8B\u9879 2\uFF1A\u6CE8\u610F\u4E8C"))
             assertFalse(noteLineOne.contains("\u8865\u5145\u8BF4\u660E"))
