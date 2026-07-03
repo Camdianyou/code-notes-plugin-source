@@ -7,6 +7,7 @@ import com.codenotes.plugin.model.TodoStatus
 import com.codenotes.plugin.settings.CodeNotesSettingsState
 import com.codenotes.plugin.util.LocalizedEnumLabels
 import com.intellij.openapi.project.Project
+import org.apache.poi.ss.usermodel.BorderStyle
 import org.apache.poi.ss.usermodel.Cell
 import org.apache.poi.ss.usermodel.CellStyle
 import org.apache.poi.ss.usermodel.HorizontalAlignment
@@ -50,7 +51,7 @@ object CodeReviewExportService {
             sheet.setMergedCellValue(9, 2, review.copyTo)
 
             val contentLines = buildList {
-                add("\u4E00\u3001\u8D70\u67E5\u8303\u56F4")
+                add("\u4E00\u3001\u8D70\u67E5\u8303\u56F4\uFF1A")
                 val scopeLines = review.scopeLines()
                 if (scopeLines.isEmpty()) {
                     addIndented("1. \u672A\u586B\u5199")
@@ -61,16 +62,19 @@ object CodeReviewExportService {
                 }
             }.map { ExportLine(it) }
             sheet.writeMergedLines(11, 6, 17, contentLines)
-            sheet.matchBottomBorder(11, 12)
+            sheet.applyHeadingBottomBorder(11)
 
             val followUpIssues = issues.filter { !it.isClosed() }
+            sheet.setSectionHeading(17, "\u4E8C\u3001\u5F85\u8DDF\u8FDB\u4E8B\u9879\uFF1A")
             sheet.writeMergedLines(
                 18,
                 5,
                 23,
                 followUpIssues.mapIndexed { index, issue -> issueLine(index + 1, issue) }
             )
+            sheet.applyHeadingBottomBorder(17)
 
+            sheet.setSectionHeading(23, "\u4E09\u3001\u5176\u4ED6\u6CE8\u610F\u4E8B\u9879\uFF1A")
             val otherLines = buildList {
                 review.notesLines().forEachIndexed { index, note ->
                     addIndented("\u5176\u4ED6\u6CE8\u610F\u4E8B\u9879 ${index + 1}\uFF1A$note")
@@ -85,6 +89,7 @@ object CodeReviewExportService {
                 }
             }.map { ExportLine(it) }
             sheet.writeMergedLines(24, 5, 29, otherLines)
+            sheet.applyHeadingBottomBorder(23)
 
             target.parentFile?.mkdirs()
             target.outputStream().use { workbook.write(it) }
@@ -156,6 +161,13 @@ object CodeReviewExportService {
         cell.cellStyle = workbook.leftAlignedStyle(cell.cellStyle)
     }
 
+    private fun Sheet.setSectionHeading(rowNumber: Int, value: String) {
+        val row = getRow(rowNumber - 1) ?: createRow(rowNumber - 1)
+        val cell = row.getCell(0) ?: row.createCell(0)
+        cell.setCellValue(value)
+        cell.cellStyle = workbook.leftAlignedStyle(cell.cellStyle)
+    }
+
     private fun Sheet.writeMergedLines(
         startRowNumber: Int,
         templateCapacity: Int,
@@ -200,20 +212,18 @@ object CodeReviewExportService {
         }
     }
 
-    private fun Sheet.matchBottomBorder(targetRowNumber: Int, sourceRowNumber: Int) {
-        val targetRow = getRow(targetRowNumber - 1) ?: return
-        val sourceCell = getRow(sourceRowNumber - 1)?.getCell(0) ?: return
+    private fun Sheet.applyHeadingBottomBorder(rowNumber: Int) {
+        val targetRow = getRow(rowNumber - 1) ?: return
         for (columnIndex in 0..3) {
             val targetCell = targetRow.getCell(columnIndex) ?: targetRow.createCell(columnIndex)
-            targetCell.cellStyle = workbook.bottomBorderStyle(targetCell.cellStyle, sourceCell.cellStyle)
+            targetCell.cellStyle = workbook.thinBottomBorderStyle(targetCell.cellStyle)
         }
     }
 
-    private fun Workbook.bottomBorderStyle(baseStyle: CellStyle, sourceStyle: CellStyle): CellStyle {
+    private fun Workbook.thinBottomBorderStyle(baseStyle: CellStyle): CellStyle {
         val style = createCellStyle()
         style.cloneStyleFrom(baseStyle)
-        style.borderBottom = sourceStyle.borderBottom
-        style.bottomBorderColor = sourceStyle.bottomBorderColor
+        style.borderBottom = BorderStyle.THIN
         return style
     }
 
