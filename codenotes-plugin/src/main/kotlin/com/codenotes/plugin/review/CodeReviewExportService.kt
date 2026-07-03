@@ -9,6 +9,7 @@ import com.codenotes.plugin.util.LocalizedEnumLabels
 import com.intellij.openapi.project.Project
 import org.apache.poi.ss.usermodel.Cell
 import org.apache.poi.ss.usermodel.CellStyle
+import org.apache.poi.ss.usermodel.HorizontalAlignment
 import org.apache.poi.ss.usermodel.IndexedColors
 import org.apache.poi.ss.usermodel.Sheet
 import org.apache.poi.ss.usermodel.Workbook
@@ -49,12 +50,18 @@ object CodeReviewExportService {
             sheet.setMergedCellValue(9, 2, review.copyTo)
 
             val contentLines = buildList {
-                add("\u8D70\u67E5\u8303\u56F4\uFF1A${review.scope.ifBlank { "\u672A\u586B\u5199" }}")
-                add("\u95EE\u9898\u6982\u89C8\uFF1A\u5171 ${issues.size} \u4E2A\u95EE\u9898\uFF0C\u5F85\u8DDF\u8FDB ${issues.count { !it.isClosed() }} \u4E2A\u3002")
-                if (review.conclusion.isNotBlank()) add("\u8D70\u67E5\u7ED3\u8BBA\uFF1A${review.conclusion}")
-                if (review.notes.isNotBlank()) add("\u8865\u5145\u8BF4\u660E\uFF1A${review.notes}")
+                add("\u4E00\u3001\u8D70\u67E5\u8303\u56F4")
+                val scopeLines = review.scopeLines()
+                if (scopeLines.isEmpty()) {
+                    addIndented("1. \u672A\u586B\u5199")
+                } else {
+                    scopeLines.forEachIndexed { index, scope ->
+                        addIndented("${index + 1}. $scope")
+                    }
+                }
             }.map { ExportLine(it) }
             sheet.writeMergedLines(11, 6, 17, contentLines)
+            sheet.matchBottomBorder(11, 12)
 
             val followUpIssues = issues.filter { !it.isClosed() }
             sheet.writeMergedLines(
@@ -65,15 +72,17 @@ object CodeReviewExportService {
             )
 
             val otherLines = buildList {
+                review.notesLines().forEachIndexed { index, note ->
+                    addIndented("\u5176\u4ED6\u6CE8\u610F\u4E8B\u9879 ${index + 1}\uFF1A$note")
+                }
                 val closedIssues = issues.filter { it.isClosed() }
                 if (closedIssues.isNotEmpty()) {
-                    add("\u5DF2\u5B8C\u6210\u6216\u5F52\u6863\u95EE\u9898\uFF1A${closedIssues.joinToString("\uFF1B") { it.title.ifBlank { it.id } }}")
+                    addIndented("\u5DF2\u5B8C\u6210\u6216\u5F52\u6863\u95EE\u9898\uFF1A${closedIssues.joinToString("\uFF1B") { it.title.ifBlank { it.id } }}")
                 }
                 val detachedIssues = issues.filter { it.filePath.isBlank() && it.symbolQualifiedName.isBlank() }
                 if (detachedIssues.isNotEmpty()) {
-                    add("\u672A\u5173\u8054\u4EE3\u7801\u7684\u95EE\u9898\uFF1A${detachedIssues.joinToString("\uFF1B") { it.title.ifBlank { it.id } }}")
+                    addIndented("\u672A\u5173\u8054\u4EE3\u7801\u7684\u95EE\u9898\uFF1A${detachedIssues.joinToString("\uFF1B") { it.title.ifBlank { it.id } }}")
                 }
-                add("\u62A5\u544A\u7531 Code Notes \u63D2\u4EF6\u6839\u636E\u4EE3\u7801\u8D70\u67E5\u8BB0\u5F55\u5BFC\u51FA\u3002")
             }.map { ExportLine(it) }
             sheet.writeMergedLines(24, 5, 29, otherLines)
 
@@ -98,6 +107,17 @@ object CodeReviewExportService {
         return statusCode == TodoStatus.DONE || statusCode == TodoStatus.ARCHIVED
     }
 
+    private fun CodeReviewEntity.notesLines(): List<String> =
+        notes.splitCleanLines()
+
+    private fun CodeReviewEntity.scopeLines(): List<String> =
+        scope.splitCleanLines()
+
+    private fun String.splitCleanLines(): List<String> =
+        this.split(Regex("\\r?\\n"))
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+
     private fun issueLine(index: Int, issue: CodeReviewIssueEntity): ExportLine {
         val severity = severityOf(issue.severity)
         val severityLabel = LocalizedEnumLabels.priority(severity)
@@ -105,7 +125,7 @@ object CodeReviewExportService {
         val owner = issue.owner.ifBlank { "\u672A\u6307\u5B9A" }
         val suggestion = issue.suggestion.ifBlank { "\u672A\u586B\u5199" }
         val description = issue.description.ifBlank { "\u672A\u586B\u5199" }
-        val text = "$index. [$severityLabel] $title - ${compactLocation(issue)}\uFF1B\u8D23\u4EFB\u4EBA\uFF1A$owner\uFF1B\u5EFA\u8BAE\uFF1A$suggestion\uFF1B\u63CF\u8FF0\uFF1A$description"
+        val text = indent("$index. [$severityLabel] $title - ${compactLocation(issue)}\uFF1B\u8D23\u4EFB\u4EBA\uFF1A$owner\uFF1B\u5EFA\u8BAE\uFF1A$suggestion\uFF1B\u63CF\u8FF0\uFF1A$description")
         return ExportLine(text, severity)
     }
 
@@ -133,6 +153,7 @@ object CodeReviewExportService {
         val row = getRow(rowNumber - 1) ?: createRow(rowNumber - 1)
         val cell = row.getCell(columnNumber - 1) ?: row.createCell(columnNumber - 1)
         cell.setCellValue(value)
+        cell.cellStyle = workbook.leftAlignedStyle(cell.cellStyle)
     }
 
     private fun Sheet.writeMergedLines(
@@ -161,15 +182,16 @@ object CodeReviewExportService {
         }
 
         val severityStyles = mutableMapOf<TodoPriority, CellStyle>()
+        var leftAlignedStyle: CellStyle? = null
         lines.forEachIndexed { offset, line ->
             val rowIndex = startRowNumber - 1 + offset
             val row = getRow(rowIndex) ?: createRow(rowIndex)
             val cell: Cell = row.getCell(0) ?: row.createCell(0)
             cell.setCellValue(line.text)
-            line.severity?.let { severity ->
-                cell.cellStyle = severityStyles.getOrPut(severity) {
-                    workbook.severityStyle(cell.cellStyle, severity)
-                }
+            cell.cellStyle = line.severity?.let { severity ->
+                severityStyles.getOrPut(severity) { workbook.leftAlignedStyle(cell.cellStyle, severity) }
+            } ?: run {
+                leftAlignedStyle ?: workbook.leftAlignedStyle(cell.cellStyle).also { leftAlignedStyle = it }
             }
         }
         (lines.size until templateCapacity).forEach { offset ->
@@ -178,19 +200,45 @@ object CodeReviewExportService {
         }
     }
 
-    private fun Workbook.severityStyle(baseStyle: CellStyle, severity: TodoPriority): CellStyle {
+    private fun Sheet.matchBottomBorder(targetRowNumber: Int, sourceRowNumber: Int) {
+        val targetRow = getRow(targetRowNumber - 1) ?: return
+        val sourceCell = getRow(sourceRowNumber - 1)?.getCell(0) ?: return
+        for (columnIndex in 0..3) {
+            val targetCell = targetRow.getCell(columnIndex) ?: targetRow.createCell(columnIndex)
+            targetCell.cellStyle = workbook.bottomBorderStyle(targetCell.cellStyle, sourceCell.cellStyle)
+        }
+    }
+
+    private fun Workbook.bottomBorderStyle(baseStyle: CellStyle, sourceStyle: CellStyle): CellStyle {
         val style = createCellStyle()
         style.cloneStyleFrom(baseStyle)
-        val font = createFont()
-        font.color = when (severity) {
-            TodoPriority.LOW -> IndexedColors.GREEN.index
-            TodoPriority.MEDIUM -> IndexedColors.DARK_YELLOW.index
-            TodoPriority.HIGH,
-            TodoPriority.CRITICAL -> IndexedColors.RED.index
-        }
-        style.setFont(font)
+        style.borderBottom = sourceStyle.borderBottom
+        style.bottomBorderColor = sourceStyle.bottomBorderColor
         return style
     }
+
+    private fun Workbook.leftAlignedStyle(baseStyle: CellStyle, severity: TodoPriority? = null): CellStyle {
+        val style = createCellStyle()
+        style.cloneStyleFrom(baseStyle)
+        style.alignment = HorizontalAlignment.LEFT
+        if (severity != null) {
+            val font = createFont()
+            font.color = when (severity) {
+                TodoPriority.LOW -> IndexedColors.GREEN.index
+                TodoPriority.MEDIUM -> IndexedColors.DARK_YELLOW.index
+                TodoPriority.HIGH,
+                TodoPriority.CRITICAL -> IndexedColors.RED.index
+            }
+            style.setFont(font)
+        }
+        return style
+    }
+
+    private fun MutableList<String>.addIndented(text: String) {
+        add(indent(text))
+    }
+
+    private fun indent(text: String): String = "  $text"
 
     private data class ExportLine(
         val text: String,

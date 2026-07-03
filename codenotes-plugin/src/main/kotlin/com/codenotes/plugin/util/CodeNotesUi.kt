@@ -13,6 +13,7 @@ import javax.swing.JButton
 import javax.swing.JComponent
 import javax.swing.JLabel
 import javax.swing.JPanel
+import javax.swing.JSplitPane
 import javax.swing.SwingConstants
 
 object CodeNotesUi {
@@ -35,6 +36,14 @@ object CodeNotesUi {
         JPanel(BorderLayout(0, JBUI.scale(8))).apply {
             border = JBUI.Borders.empty(8, 10)
             isOpaque = false
+        }
+
+    fun verticalSplit(top: JComponent, bottom: JComponent, resizeWeight: Double = 0.35): JSplitPane =
+        JSplitPane(JSplitPane.VERTICAL_SPLIT, top, bottom).apply {
+            this.resizeWeight = resizeWeight
+            isOneTouchExpandable = true
+            dividerSize = JBUI.scale(7)
+            border = JBUI.Borders.empty()
         }
 
     fun section(title: String, icon: Icon, content: JComponent): JPanel =

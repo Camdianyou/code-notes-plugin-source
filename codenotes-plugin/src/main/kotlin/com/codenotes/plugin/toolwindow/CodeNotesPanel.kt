@@ -53,8 +53,10 @@ import javax.swing.JSplitPane
 import javax.swing.JTabbedPane
 import javax.swing.ListSelectionModel
 import javax.swing.SwingUtilities
+import javax.swing.Timer
 import javax.swing.border.EmptyBorder
 import javax.swing.event.DocumentEvent
+import javax.swing.text.JTextComponent
 
 class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Disposable {
 
@@ -83,6 +85,8 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm")
     private var selectedFilter = FilterItem.all()
     private var loading = false
+    private var editingNoteId: String? = null
+    private val autoSaveTimer = Timer(500) { saveSelectedNote() }.apply { isRepeats = false }
 
     init {
         project.messageBus.connect(this).subscribe(NoteChangeBus.TOPIC, object : NoteChangeListener {
@@ -122,6 +126,7 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
         typeCombo.renderer = localizedRenderer<NoteType> { LocalizedEnumLabels.noteType(it) }
         priorityCombo.renderer = localizedRenderer<TodoPriority> { LocalizedEnumLabels.priority(it) }
         statusCombo.renderer = localizedRenderer<TodoStatus> { LocalizedEnumLabels.status(it) }
+        installAutoSaveListeners()
 
         add(toolbar(), BorderLayout.NORTH)
         add(workspace(), BorderLayout.CENTER)
@@ -132,9 +137,8 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
         val panel = JPanel(BorderLayout(8, 0))
         val buttons = CodeNotesUi.toolbarPanel()
         buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.new"), CodeNotesIcons.AddNote, primary = true) { createProjectNote() })
-        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.save"), CodeNotesIcons.Save) { saveSelectedNote() })
+        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.refresh"), CodeNotesIcons.Refresh) { refreshAndClear() })
         buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.delete"), CodeNotesIcons.Delete) { deleteSelectedNote() })
-        buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.open"), CodeNotesIcons.Open) { navigateToSelected() })
         buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.addToReview"), CodeNotesIcons.ReviewIssue) { addSelectedNoteToReview() })
         buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.export"), CodeNotesIcons.Export) { exportNotes() })
         buttons.add(CodeNotesUi.actionButton(CodeNotesBundle.message("panel.action.import"), CodeNotesIcons.Import) { importNotes() })
@@ -193,10 +197,19 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
             }
         }
 
+        val lower = CodeNotesUi.detailPanel()
+        lower.add(CodeNotesUi.section(CodeNotesBundle.message("panel.section.content"), CodeNotesIcons.Markdown, tabs), BorderLayout.CENTER)
+        lower.add(attachmentPanel(), BorderLayout.SOUTH)
+
         val panel = CodeNotesUi.detailPanel()
-        panel.add(CodeNotesUi.section(CodeNotesBundle.message("panel.section.basic"), CodeNotesIcons.Info, fields), BorderLayout.NORTH)
-        panel.add(CodeNotesUi.section(CodeNotesBundle.message("panel.section.content"), CodeNotesIcons.Markdown, tabs), BorderLayout.CENTER)
-        panel.add(attachmentPanel(), BorderLayout.SOUTH)
+        panel.add(
+            CodeNotesUi.verticalSplit(
+                CodeNotesUi.section(CodeNotesBundle.message("panel.section.basic"), CodeNotesIcons.Info, fields),
+                lower,
+                0.35
+            ),
+            BorderLayout.CENTER
+        )
         return panel
     }
 
@@ -217,6 +230,57 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
     private fun refreshAll(keepSelection: Boolean) {
         refreshFilters()
         refreshNotes(keepSelection)
+    }
+
+    private fun refreshAndClear() {
+        loading = true
+        autoSaveTimer.stop()
+        refreshAll(keepSelection = false)
+        noteList.clearSelection()
+        editingNoteId = null
+        clearForm()
+        loading = false
+    }
+
+    private fun installAutoSaveListeners() {
+        val noteTextListener = object : com.intellij.ui.DocumentAdapter() {
+            override fun textChanged(e: DocumentEvent) = scheduleAutoSave()
+        }
+        listOf<JTextComponent>(titleField, summaryField, descriptionArea, tagsField, dueDateField).forEach {
+            it.document.addDocumentListener(noteTextListener)
+        }
+        listOf(typeCombo, priorityCombo, statusCombo).forEach { combo ->
+            combo.addActionListener { scheduleAutoSave() }
+        }
+        favoriteBox.addActionListener { scheduleAutoSave() }
+    }
+
+    private fun scheduleAutoSave() {
+        if (loading || editingNoteId == null) return
+        autoSaveTimer.restart()
+    }
+
+    private fun flushAutoSave() {
+        if (autoSaveTimer.isRunning) {
+            autoSaveTimer.stop()
+            saveSelectedNote()
+        }
+    }
+
+    private fun clearForm() {
+        typeCombo.selectedItem = NoteType.COMMENT
+        titleField.text = ""
+        summaryField.text = ""
+        descriptionArea.text = ""
+        tagsField.text = ""
+        priorityCombo.selectedItem = TodoPriority.MEDIUM
+        statusCombo.selectedItem = TodoStatus.TODO
+        dueDateField.text = ""
+        favoriteBox.isSelected = false
+        anchorLabel.text = ""
+        updatedLabel.text = ""
+        previewPane.text = ""
+        attachmentModel.clear()
     }
 
     private fun refreshFilters() {
@@ -259,8 +323,10 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
     }
 
     private fun loadSelectedNote() {
+        flushAutoSave()
         val note = noteList.selectedValue ?: return
         loading = true
+        editingNoteId = note.id
         typeCombo.selectedItem = LocalizedEnumLabels.noteTypeCode(note.type) ?: NoteType.COMMENT
         titleField.text = note.title
         summaryField.text = note.summary
@@ -285,6 +351,7 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
     }
 
     private fun createProjectNote() {
+        flushAutoSave()
         val note = NoteEntity().apply {
             anchorType = NoteAnchor.PROJECT.name
             scope = NoteScope.PROJECT.name
@@ -299,7 +366,7 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
 
     private fun saveSelectedNote() {
         if (loading) return
-        val note = noteList.selectedValue ?: return
+        val note = editingNoteId?.let { repository.findById(it) } ?: noteList.selectedValue ?: return
         note.type = (typeCombo.selectedItem as NoteType).name
         note.title = titleField.text.trim()
         note.summary = summaryField.text.trim()
@@ -314,6 +381,7 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
     }
 
     private fun addAttachment() {
+        flushAutoSave()
         val note = noteList.selectedValue ?: return
         val chooser = JFileChooser()
         chooser.isMultiSelectionEnabled = true
@@ -342,6 +410,7 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
     }
 
     private fun exportNotes() {
+        flushAutoSave()
         val chooser = JFileChooser()
         chooser.selectedFile = java.io.File("codeNotes-backup.xml")
         if (chooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
@@ -354,15 +423,20 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
         if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             val state = NoteBackupService.importFrom(chooser.selectedFile)
             repository.replaceAll(state.notes, state.folders, state.codeReviews, state.codeReviewIssues)
+            refreshAndClear()
         }
     }
 
     private fun deleteSelectedNote() {
+        autoSaveTimer.stop()
         val note = noteList.selectedValue ?: return
         repository.delete(note.id)
+        editingNoteId = null
+        clearForm()
     }
 
     private fun addSelectedNoteToReview() {
+        flushAutoSave()
         val notes = noteList.selectedValuesList.ifEmpty {
             noteList.selectedValue?.let { listOf(it) } ?: emptyList()
         }
@@ -489,5 +563,6 @@ class CodeNotesPanel(private val project: Project) : JPanel(BorderLayout()), Dis
         }
 
     override fun dispose() {
+        autoSaveTimer.stop()
     }
 }

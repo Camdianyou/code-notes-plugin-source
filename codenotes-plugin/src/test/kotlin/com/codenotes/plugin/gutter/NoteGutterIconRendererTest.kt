@@ -8,11 +8,12 @@ class NoteGutterIconRendererTest {
 
     @Test
     fun `maps priority codes and Chinese labels to gutter icon keys`() {
-        assertEquals("LOW", NoteGutterIconRenderer.iconKeyForPriority(TodoPriority.LOW.name))
-        assertEquals("MEDIUM", NoteGutterIconRenderer.iconKeyForPriority(TodoPriority.MEDIUM.name))
-        assertEquals("HIGH", NoteGutterIconRenderer.iconKeyForPriority(TodoPriority.HIGH.name))
-        assertEquals("CRITICAL", NoteGutterIconRenderer.iconKeyForPriority(TodoPriority.CRITICAL.name))
-        assertEquals("HIGH", NoteGutterIconRenderer.iconKeyForPriority("\u9AD8"))
-        assertEquals("MEDIUM", NoteGutterIconRenderer.iconKeyForPriority(""))
+        assertEquals("PIN_LOW", NoteGutterIconRenderer.iconKeyForPriority(TodoPriority.LOW.name))
+        assertEquals("PIN_MEDIUM", NoteGutterIconRenderer.iconKeyForPriority(TodoPriority.MEDIUM.name))
+        assertEquals("PIN_HIGH", NoteGutterIconRenderer.iconKeyForPriority(TodoPriority.HIGH.name))
+        assertEquals("PIN_CRITICAL", NoteGutterIconRenderer.iconKeyForPriority(TodoPriority.CRITICAL.name))
+        assertEquals("PIN_HIGH", NoteGutterIconRenderer.iconKeyForPriority("\u9AD8"))
+        assertEquals("PIN_MEDIUM", NoteGutterIconRenderer.iconKeyForPriority(""))
+        assertEquals("PIN_MEDIUM", NoteGutterIconRenderer.iconKeyForPriority("unknown"))
     }
 }

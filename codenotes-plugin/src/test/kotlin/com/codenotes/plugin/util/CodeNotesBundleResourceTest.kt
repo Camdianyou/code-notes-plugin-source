@@ -11,6 +11,7 @@ class CodeNotesBundleResourceTest {
         val requiredKeys = listOf(
             "panel.action.new",
             "panel.action.save",
+            "panel.action.refresh",
             "panel.action.delete",
             "panel.action.open",
             "panel.action.export",
@@ -34,7 +35,8 @@ class CodeNotesBundleResourceTest {
             "todo.priority.low",
             "todo.priority.medium",
             "todo.status.todo",
-            "todo.status.archived"
+            "todo.status.archived",
+            "review.action.refresh"
         )
 
         val english = loadProperties("messages/CodeNotesBundle.properties")
