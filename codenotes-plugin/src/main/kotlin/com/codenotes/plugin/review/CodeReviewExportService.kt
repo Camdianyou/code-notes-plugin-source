@@ -62,7 +62,7 @@ object CodeReviewExportService {
                 }
             }.map { ExportLine(it) }
             sheet.writeMergedLines(11, 6, 17, contentLines)
-            sheet.applyHeadingBottomBorder(11)
+            sheet.applySectionBoundaryBorder(11, 12)
 
             val followUpIssues = issues.filter { !it.isClosed() }
             sheet.setSectionHeading(17, "\u4E8C\u3001\u5F85\u8DDF\u8FDB\u4E8B\u9879\uFF1A")
@@ -72,7 +72,7 @@ object CodeReviewExportService {
                 23,
                 followUpIssues.mapIndexed { index, issue -> issueLine(index + 1, issue) }
             )
-            sheet.applyHeadingBottomBorder(17)
+            sheet.applySectionBoundaryBorder(17, 18)
 
             sheet.setSectionHeading(23, "\u4E09\u3001\u5176\u4ED6\u6CE8\u610F\u4E8B\u9879\uFF1A")
             val otherLines = buildList {
@@ -89,7 +89,7 @@ object CodeReviewExportService {
                 }
             }.map { ExportLine(it) }
             sheet.writeMergedLines(24, 5, 29, otherLines)
-            sheet.applyHeadingBottomBorder(23)
+            sheet.applySectionBoundaryBorder(23, 24)
 
             target.parentFile?.mkdirs()
             target.outputStream().use { workbook.write(it) }
@@ -212,6 +212,11 @@ object CodeReviewExportService {
         }
     }
 
+    private fun Sheet.applySectionBoundaryBorder(headingRowNumber: Int, firstContentRowNumber: Int) {
+        applyHeadingBottomBorder(headingRowNumber)
+        applyFirstContentTopBorder(firstContentRowNumber)
+    }
+
     private fun Sheet.applyHeadingBottomBorder(rowNumber: Int) {
         val targetRow = getRow(rowNumber - 1) ?: return
         for (columnIndex in 0..3) {
@@ -220,10 +225,25 @@ object CodeReviewExportService {
         }
     }
 
+    private fun Sheet.applyFirstContentTopBorder(rowNumber: Int) {
+        val targetRow = getRow(rowNumber - 1) ?: return
+        for (columnIndex in 0..3) {
+            val targetCell = targetRow.getCell(columnIndex) ?: targetRow.createCell(columnIndex)
+            targetCell.cellStyle = workbook.thinTopBorderStyle(targetCell.cellStyle)
+        }
+    }
+
     private fun Workbook.thinBottomBorderStyle(baseStyle: CellStyle): CellStyle {
         val style = createCellStyle()
         style.cloneStyleFrom(baseStyle)
         style.borderBottom = BorderStyle.THIN
+        return style
+    }
+
+    private fun Workbook.thinTopBorderStyle(baseStyle: CellStyle): CellStyle {
+        val style = createCellStyle()
+        style.cloneStyleFrom(baseStyle)
+        style.borderTop = BorderStyle.THIN
         return style
     }
 

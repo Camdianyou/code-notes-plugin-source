@@ -164,6 +164,7 @@ class CodeReviewFeatureTest {
             assertEquals("  2. \u56DE\u8C03\u9A8C\u7B7E\u903B\u8F91", sheet.getRow(12).getCell(0).stringCellValue)
             assertEquals(HorizontalAlignment.LEFT, firstScopeCell.cellStyle.alignment)
             assertEquals(BorderStyle.THIN, scopeTitleCell.cellStyle.borderBottom)
+            assertEquals(BorderStyle.THIN, firstScopeCell.cellStyle.borderTop)
             assertFalse((10..15).any { rowIndex ->
                 sheet.getRow(rowIndex)?.getCell(0)?.stringCellValue?.contains("\u95EE\u9898\u6982\u89C8") == true
             })
@@ -199,6 +200,7 @@ class CodeReviewFeatureTest {
             val followUpHeadingCell = sheet.getRow(16).getCell(0)
             assertEquals("\u4E8C\u3001\u5F85\u8DDF\u8FDB\u4E8B\u9879\uFF1A", followUpHeadingCell.stringCellValue)
             assertEquals(BorderStyle.THIN, followUpHeadingCell.cellStyle.borderBottom)
+            assertEquals(BorderStyle.THIN, highCell.cellStyle.borderTop)
 
             val otherHeadingCell = sheet.getRow(22).getCell(0)
             assertEquals("\u4E09\u3001\u5176\u4ED6\u6CE8\u610F\u4E8B\u9879\uFF1A", otherHeadingCell.stringCellValue)
@@ -206,6 +208,7 @@ class CodeReviewFeatureTest {
 
             val noteLineOne = sheet.getRow(23).getCell(0).stringCellValue
             val noteLineTwo = sheet.getRow(24).getCell(0).stringCellValue
+            assertEquals(BorderStyle.THIN, sheet.getRow(23).getCell(0).cellStyle.borderTop)
             assertTrue(noteLineOne.startsWith("  "))
             assertTrue(noteLineTwo.startsWith("  "))
             assertTrue(noteLineOne.contains("\u5176\u4ED6\u6CE8\u610F\u4E8B\u9879 1\uFF1A\u6CE8\u610F\u4E00"))
