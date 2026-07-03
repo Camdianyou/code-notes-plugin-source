@@ -7,7 +7,6 @@ import com.codenotes.plugin.model.TodoStatus
 import com.codenotes.plugin.settings.CodeNotesSettingsState
 import com.codenotes.plugin.util.LocalizedEnumLabels
 import com.intellij.openapi.project.Project
-import org.apache.poi.ss.usermodel.BorderStyle
 import org.apache.poi.ss.usermodel.Cell
 import org.apache.poi.ss.usermodel.CellStyle
 import org.apache.poi.ss.usermodel.HorizontalAlignment
@@ -51,7 +50,7 @@ object CodeReviewExportService {
             sheet.setMergedCellValue(9, 2, review.copyTo)
 
             val contentLines = buildList {
-                add("\u4E00\u3001\u8D70\u67E5\u8303\u56F4\uFF1A")
+                add("\u4E00\u3001\u8D70\u67E5\u8303\u56F4")
                 val scopeLines = review.scopeLines()
                 if (scopeLines.isEmpty()) {
                     addIndented("1. \u672A\u586B\u5199")
@@ -60,21 +59,18 @@ object CodeReviewExportService {
                         addIndented("${index + 1}. $scope")
                     }
                 }
+                addIndented("\u95EE\u9898\u6982\u89C8\uFF1A\u5171 ${issues.size} \u4E2A\u95EE\u9898\uFF0C\u5F85\u8DDF\u8FDB ${issues.count { !it.isClosed() }} \u4E2A\u3002")
             }.map { ExportLine(it) }
             sheet.writeMergedLines(11, 6, 17, contentLines)
-            sheet.applySectionBoundaryBorder(11, 12)
 
             val followUpIssues = issues.filter { !it.isClosed() }
-            sheet.setSectionHeading(17, "\u4E8C\u3001\u5F85\u8DDF\u8FDB\u4E8B\u9879\uFF1A")
             sheet.writeMergedLines(
                 18,
                 5,
                 23,
                 followUpIssues.mapIndexed { index, issue -> issueLine(index + 1, issue) }
             )
-            sheet.applySectionBoundaryBorder(17, 18)
 
-            sheet.setSectionHeading(23, "\u4E09\u3001\u5176\u4ED6\u6CE8\u610F\u4E8B\u9879\uFF1A")
             val otherLines = buildList {
                 review.notesLines().forEachIndexed { index, note ->
                     addIndented("\u5176\u4ED6\u6CE8\u610F\u4E8B\u9879 ${index + 1}\uFF1A$note")
@@ -89,7 +85,6 @@ object CodeReviewExportService {
                 }
             }.map { ExportLine(it) }
             sheet.writeMergedLines(24, 5, 29, otherLines)
-            sheet.applySectionBoundaryBorder(23, 24)
 
             target.parentFile?.mkdirs()
             target.outputStream().use { workbook.write(it) }
@@ -161,13 +156,6 @@ object CodeReviewExportService {
         cell.cellStyle = workbook.leftAlignedStyle(cell.cellStyle)
     }
 
-    private fun Sheet.setSectionHeading(rowNumber: Int, value: String) {
-        val row = getRow(rowNumber - 1) ?: createRow(rowNumber - 1)
-        val cell = row.getCell(0) ?: row.createCell(0)
-        cell.setCellValue(value)
-        cell.cellStyle = workbook.leftAlignedStyle(cell.cellStyle)
-    }
-
     private fun Sheet.writeMergedLines(
         startRowNumber: Int,
         templateCapacity: Int,
@@ -210,41 +198,6 @@ object CodeReviewExportService {
             val row = getRow(startRowNumber - 1 + offset) ?: return@forEach
             row.getCell(0)?.setCellValue("")
         }
-    }
-
-    private fun Sheet.applySectionBoundaryBorder(headingRowNumber: Int, firstContentRowNumber: Int) {
-        applyHeadingBottomBorder(headingRowNumber)
-        applyFirstContentTopBorder(firstContentRowNumber)
-    }
-
-    private fun Sheet.applyHeadingBottomBorder(rowNumber: Int) {
-        val targetRow = getRow(rowNumber - 1) ?: return
-        for (columnIndex in 0..3) {
-            val targetCell = targetRow.getCell(columnIndex) ?: targetRow.createCell(columnIndex)
-            targetCell.cellStyle = workbook.thinBottomBorderStyle(targetCell.cellStyle)
-        }
-    }
-
-    private fun Sheet.applyFirstContentTopBorder(rowNumber: Int) {
-        val targetRow = getRow(rowNumber - 1) ?: return
-        for (columnIndex in 0..3) {
-            val targetCell = targetRow.getCell(columnIndex) ?: targetRow.createCell(columnIndex)
-            targetCell.cellStyle = workbook.thinTopBorderStyle(targetCell.cellStyle)
-        }
-    }
-
-    private fun Workbook.thinBottomBorderStyle(baseStyle: CellStyle): CellStyle {
-        val style = createCellStyle()
-        style.cloneStyleFrom(baseStyle)
-        style.borderBottom = BorderStyle.THIN
-        return style
-    }
-
-    private fun Workbook.thinTopBorderStyle(baseStyle: CellStyle): CellStyle {
-        val style = createCellStyle()
-        style.cloneStyleFrom(baseStyle)
-        style.borderTop = BorderStyle.THIN
-        return style
     }
 
     private fun Workbook.leftAlignedStyle(baseStyle: CellStyle, severity: TodoPriority? = null): CellStyle {

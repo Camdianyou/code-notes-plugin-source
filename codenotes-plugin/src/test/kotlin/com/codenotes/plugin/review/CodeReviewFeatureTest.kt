@@ -8,7 +8,6 @@ import com.codenotes.plugin.model.TodoPriority
 import com.codenotes.plugin.model.TodoStatus
 import com.codenotes.plugin.state.NoteStorageState
 import com.codenotes.plugin.util.LocalizedEnumLabels
-import org.apache.poi.ss.usermodel.BorderStyle
 import org.apache.poi.ss.usermodel.HorizontalAlignment
 import org.apache.poi.ss.usermodel.IndexedColors
 import org.apache.poi.ss.usermodel.WorkbookFactory
@@ -157,17 +156,10 @@ class CodeReviewFeatureTest {
             assertEquals(HorizontalAlignment.LEFT, meetingNameCell.cellStyle.alignment)
             assertEquals(HorizontalAlignment.LEFT, meetingDateCell.cellStyle.alignment)
             assertEquals(HorizontalAlignment.LEFT, locationCell.cellStyle.alignment)
-            val scopeTitleCell = sheet.getRow(10).getCell(0)
-            val firstScopeCell = sheet.getRow(11).getCell(0)
-            assertEquals("\u4E00\u3001\u8D70\u67E5\u8303\u56F4\uFF1A", scopeTitleCell.stringCellValue)
-            assertEquals("  1. \u652F\u4ED8\u4E0B\u5355\u6D41\u7A0B", firstScopeCell.stringCellValue)
+            assertEquals("\u4E00\u3001\u8D70\u67E5\u8303\u56F4", sheet.getRow(10).getCell(0).stringCellValue)
+            assertEquals("  1. \u652F\u4ED8\u4E0B\u5355\u6D41\u7A0B", sheet.getRow(11).getCell(0).stringCellValue)
             assertEquals("  2. \u56DE\u8C03\u9A8C\u7B7E\u903B\u8F91", sheet.getRow(12).getCell(0).stringCellValue)
-            assertEquals(HorizontalAlignment.LEFT, firstScopeCell.cellStyle.alignment)
-            assertEquals(BorderStyle.THIN, scopeTitleCell.cellStyle.borderBottom)
-            assertEquals(BorderStyle.THIN, firstScopeCell.cellStyle.borderTop)
-            assertFalse((10..15).any { rowIndex ->
-                sheet.getRow(rowIndex)?.getCell(0)?.stringCellValue?.contains("\u95EE\u9898\u6982\u89C8") == true
-            })
+            assertEquals(HorizontalAlignment.LEFT, sheet.getRow(11).getCell(0).cellStyle.alignment)
             assertFalse(sheet.getRow(13).getCell(0).stringCellValue.contains("\u8D70\u67E5\u7ED3\u8BBA"))
 
             val highCell = sheet.getRow(17).getCell(0)
@@ -197,18 +189,8 @@ class CodeReviewFeatureTest {
             assertTrue(criticalCell.stringCellValue.contains("[\u7D27\u6025]"))
             assertTrue(criticalCell.stringCellValue.contains("UserService.load"))
 
-            val followUpHeadingCell = sheet.getRow(16).getCell(0)
-            assertEquals("\u4E8C\u3001\u5F85\u8DDF\u8FDB\u4E8B\u9879\uFF1A", followUpHeadingCell.stringCellValue)
-            assertEquals(BorderStyle.THIN, followUpHeadingCell.cellStyle.borderBottom)
-            assertEquals(BorderStyle.THIN, highCell.cellStyle.borderTop)
-
-            val otherHeadingCell = sheet.getRow(22).getCell(0)
-            assertEquals("\u4E09\u3001\u5176\u4ED6\u6CE8\u610F\u4E8B\u9879\uFF1A", otherHeadingCell.stringCellValue)
-            assertEquals(BorderStyle.THIN, otherHeadingCell.cellStyle.borderBottom)
-
             val noteLineOne = sheet.getRow(23).getCell(0).stringCellValue
             val noteLineTwo = sheet.getRow(24).getCell(0).stringCellValue
-            assertEquals(BorderStyle.THIN, sheet.getRow(23).getCell(0).cellStyle.borderTop)
             assertTrue(noteLineOne.startsWith("  "))
             assertTrue(noteLineTwo.startsWith("  "))
             assertTrue(noteLineOne.contains("\u5176\u4ED6\u6CE8\u610F\u4E8B\u9879 1\uFF1A\u6CE8\u610F\u4E00"))
